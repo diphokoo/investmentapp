@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomNav, { NavTab } from '../dashboard/BottomNav';
 import SettingsItem from './shared/SettingsItem';
 import ToggleRow from './shared/ToggleRow';
+import { Modal } from 'react-native';
+import AdminScreen from '../admin/AdminScreen';
 
 // Sub-screens
 import AppearanceScreen from './AppearanceScreen';
@@ -28,11 +30,12 @@ type SubScreen =
   | 'notifications' | 'language' | 'appearance' | 'help'
   | null;
 
-interface Props { onNavChange: (tab: NavTab) => void }
+interface Props { onNavChange: (tab: NavTab) => void; onAdminPress?: () => void; }
 
 export default function SettingsScreen({ onNavChange }: Props) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null);
   const [darkMode, setDarkMode]   = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   // ── Sub-screen router ──────────────────────────────────────────
   if (subScreen === 'profile')       return <ProfileScreen       onBack={() => setSubScreen(null)} />;
@@ -95,8 +98,8 @@ export default function SettingsScreen({ onNavChange }: Props) {
             {/* Balance */}
             <View style={styles.balanceRow}>
               <View>
-                <Text style={styles.balanceLabel}>TOTAL BALANCE</Text>
-                <Text style={styles.balanceAmount}>R15,000.00</Text>
+                <Text style={styles.balanceLabel}>AVAILABLE CREDIT</Text>
+                <Text style={styles.balanceAmount}>R5,000.00</Text>
                 <Text style={styles.balanceUpdated}>Updated 01:35 PM</Text>
               </View>
               <View style={styles.walletIcon}>
@@ -163,16 +166,46 @@ export default function SettingsScreen({ onNavChange }: Props) {
               icon="help-circle-outline" iconBg="#f0fdf4" iconColor="#16a34a"
               label="Help Center"
               onPress={() => setSubScreen('help')}
+            />
+            <SettingsItem
+              icon="shield-outline" iconBg="#fef2f2" iconColor="#dc2626"
+              label="Admin Panel"
+              onPress={() => setShowAdmin(true)}
               hideBorder
             />
           </View>
 
+          {/* ── Notifications Placeholder ── */}
+          <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
+          <View style={styles.card}>
+            {[
+              { icon: 'checkmark-circle-outline', color: '#16a34a', bg: '#f0fdf4', label: 'Loan Approved', sub: 'Your loan application was approved' },
+              { icon: 'close-circle-outline',     color: '#dc2626', bg: '#fef2f2', label: 'Loan Rejected', sub: 'Application requires more information' },
+              { icon: 'alarm-outline',             color: '#d97706', bg: '#fffbeb', label: 'Repayment Due', sub: 'R2,500 due on 30 Jul 2025' },
+              { icon: 'arrow-down-circle-outline', color: '#2563eb', bg: '#eff6ff', label: 'Payment Received', sub: 'R3,000 salary advance received' },
+            ].map((n, i, arr) => (
+              <View key={n.label} style={[styles.notifRow, i < arr.length - 1 && styles.notifBorder]}>
+                <View style={[styles.notifIcon, { backgroundColor: n.bg }]}>
+                  <Ionicons name={n.icon as any} size={18} color={n.color} />
+                </View>
+                <View style={styles.notifInfo}>
+                  <Text style={styles.notifLabel}>{n.label}</Text>
+                  <Text style={styles.notifSub}>{n.sub}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
           {/* ── Version ── */}
-          <Text style={styles.version}>Finvest v1.0.0 · © 2025</Text>
+          <Text style={styles.version}>PayAdvance v1.0.0 · NCR Reg. NCRCP0000 · © 2025</Text>
         </ScrollView>
 
         <BottomNav active="settings" onChange={onNavChange} />
       </View>
+
+      <Modal visible={showAdmin} animationType="slide" onRequestClose={() => setShowAdmin(false)}>
+        <AdminScreen onClose={() => setShowAdmin(false)} />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -251,4 +284,10 @@ const styles = StyleSheet.create({
     textAlign: 'center', fontSize: 12, color: '#cbd5e1',
     marginTop: 28, marginBottom: 4,
   },
+  notifRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
+  notifBorder: { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  notifIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  notifInfo: { flex: 1 },
+  notifLabel: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  notifSub: { fontSize: 11, color: '#64748b', marginTop: 1 },
 });
