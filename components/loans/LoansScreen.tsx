@@ -14,7 +14,7 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface Props { onNavChange?: (tab: NavTab) => void }
 
-const STEP_LABELS = ['Employer', 'Details', 'Consent', 'Calculator', 'Documents', 'Submit'];
+const STEP_LABELS = ['Calculator', 'Employer', 'Details', 'Documents', 'Consent', 'Submit'];
 
 export default function LoansScreen({ onNavChange }: Props) {
   const [step, setStep] = useState<Step>(1);
@@ -66,33 +66,34 @@ export default function LoansScreen({ onNavChange }: Props) {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {step === 1 && (
+            <LoanCalculator
+              onNext={d => { setLoanDetails(d); setStep(2); }}
+              onBack={() => handleNav('history')}
+            />
+          )}
+          {step === 2 && (
             <CompanySelector
               search={search}
               onSearchChange={setSearch}
-              onSelect={c => { setCompany(c); setStep(2); }}
+              onBack={() => setStep(1)}
+              onSelect={c => { setCompany(c); setStep(3); }}
             />
           )}
-          {step === 2 && company && (
+          {step === 3 && company && (
             <EmployeeDetailsForm
               company={company}
-              onNext={d => { setEmployeeDetails(d); setStep(3); }}
-              onBack={() => setStep(1)}
-            />
-          )}
-          {step === 3 && (
-            <ConsentSection
-              onNext={() => setStep(4)}
+              onNext={d => { setEmployeeDetails(d); setStep(4); }}
               onBack={() => setStep(2)}
             />
           )}
           {step === 4 && (
-            <LoanCalculator
-              onNext={d => { setLoanDetails(d); setStep(5); }}
+            <FICAUploadScreen
+              onNext={() => setStep(5)}
               onBack={() => setStep(3)}
             />
           )}
           {step === 5 && (
-            <FICAUploadScreen
+            <ConsentSection
               onNext={() => setStep(6)}
               onBack={() => setStep(4)}
             />

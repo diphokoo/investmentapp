@@ -19,11 +19,12 @@ const COMPANIES: Company[] = [
 
 interface Props {
   onSelect: (company: Company) => void;
+  onBack: () => void;
   search: string;
   onSearchChange: (v: string) => void;
 }
 
-export default function CompanySelector({ onSelect, search, onSearchChange }: Props) {
+export default function CompanySelector({ onSelect, onBack, search, onSearchChange }: Props) {
   const filtered = COMPANIES.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.sector.toLowerCase().includes(search.toLowerCase())
@@ -31,6 +32,10 @@ export default function CompanySelector({ onSelect, search, onSearchChange }: Pr
 
   return (
     <View style={styles.wrap}>
+      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+        <Ionicons name="arrow-back" size={18} color="#2563eb" />
+        <Text style={styles.backText}>Back</Text>
+      </TouchableOpacity>
       <Text style={styles.title}>Select Your Employer</Text>
       <Text style={styles.sub}>Choose the company you are employed by</Text>
 
@@ -69,6 +74,8 @@ export default function CompanySelector({ onSelect, search, onSearchChange }: Pr
 
 const styles = StyleSheet.create({
   wrap: { gap: 16 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+  backText: { fontSize: 14, fontWeight: '600', color: '#2563eb' },
   title: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
   sub: { fontSize: 13, color: '#64748b', marginTop: -8 },
   searchWrap: {
