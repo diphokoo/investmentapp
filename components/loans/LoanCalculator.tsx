@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import {
-  Modal, Pressable, ScrollView, StyleSheet, Text,
+  Modal, Pressable, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 
@@ -44,13 +44,32 @@ function fmt(n: number) {
   return `R ${n.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Returns YYYY-MM-DD using local time — avoids UTC off-by-one on all timezones. */
 function toDateString(d: Date): string {
-  return d.toISOString().split('T')[0]; // YYYY-MM-DD
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
+/** Parses a YYYY-MM-DD string in local time — never UTC. */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Formats as "15 August 2026" — user-friendly long format. */
 function formatDisplay(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+  return parseLocalDate(dateStr).toLocaleDateString('en-ZA', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+
+/** Returns today at midnight in local time — recalculated fresh on every call. */
+function getTodayLocal(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 function daysBetween(from: Date, to: Date): number {
@@ -70,9 +89,11 @@ interface CalendarProps {
 }
 
 function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarProps) {
-  const today = new Date(minDate + 'T00:00:00');
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  // Initialise the calendar view on the month that contains minDate (today).
+  // Using parseLocalDate avoids UTC midnight shifting the date back one day.
+  const minLocal = parseLocalDate(minDate);
+  const [viewYear, setViewYear] = useState(minLocal.getFullYear());
+  const [viewMonth, setViewMonth] = useState(minLocal.getMonth());
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -86,40 +107,81 @@ function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarPro
     else setViewMonth(m => m + 1);
   };
 
-  const cells: (number | null)[] = [...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  // Prevent navigating to months entirely outside the allowed range.
+  const canGoPrev = (): boolean => {
+    const minLocal = parseLocalDate(minDate);
+    return viewYear > minLocal.getFullYear() ||
+      (viewYear === minLocal.getFullYear() && viewMonth > minLocal.getMonth());
+  };
+  const canGoNext = (): boolean => {
+    const maxLocal = parseLocalDate(maxDate);
+    return viewYear < maxLocal.getFullYear() ||
+      (viewYear === maxLocal.getFullYear() && viewMonth < maxLocal.getMonth());
+  };
+
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  // Build YYYY-MM-DD using local arithmetic — no UTC conversion.
+  const cellDateStr = (day: number): string =>
+    `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   return (
     <View style={cal.wrap}>
+      {/* Month / year navigation */}
       <View style={cal.header}>
-        <TouchableOpacity onPress={prevMonth} style={cal.navBtn}>
-          <Ionicons name="chevron-back" size={20} color="#1e293b" />
+        <TouchableOpacity
+          onPress={prevMonth}
+          style={[cal.navBtn, !canGoPrev() && cal.navBtnDisabled]}
+          disabled={!canGoPrev()}
+        >
+          <Ionicons name="chevron-back" size={20} color={canGoPrev() ? '#1e293b' : '#cbd5e1'} />
         </TouchableOpacity>
         <Text style={cal.title}>{MONTHS[viewMonth]} {viewYear}</Text>
-        <TouchableOpacity onPress={nextMonth} style={cal.navBtn}>
-          <Ionicons name="chevron-forward" size={20} color="#1e293b" />
+        <TouchableOpacity
+          onPress={nextMonth}
+          style={[cal.navBtn, !canGoNext() && cal.navBtnDisabled]}
+          disabled={!canGoNext()}
+        >
+          <Ionicons name="chevron-forward" size={20} color={canGoNext() ? '#1e293b' : '#cbd5e1'} />
         </TouchableOpacity>
       </View>
 
+      {/* Day-of-week headers */}
       <View style={cal.dowRow}>
         {DAYS_OF_WEEK.map(d => <Text key={d} style={cal.dow}>{d}</Text>)}
       </View>
 
+      {/* Day cells */}
       <View style={cal.grid}>
         {cells.map((day, idx) => {
           if (!day) return <View key={`e${idx}`} style={cal.cell} />;
-          const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const isSelected = dateStr === selected;
-          const disabled = dateStr < minDate || dateStr > maxDate;
+          const ds = cellDateStr(day);
+          const isSelected = ds === selected;
+          // Disable if before today OR after maxDate (60 days from today).
+          const disabled = ds < minDate || ds > maxDate;
+          const isToday = ds === minDate;
           return (
             <TouchableOpacity
-              key={dateStr}
-              style={[cal.cell, isSelected && cal.cellSelected, disabled && cal.cellDisabled]}
-              onPress={() => !disabled && (onSelect(dateStr), onClose())}
+              key={ds}
+              style={[
+                cal.cell,
+                isToday && !isSelected && cal.cellToday,
+                isSelected && cal.cellSelected,
+                disabled && cal.cellDisabled,
+              ]}
+              onPress={() => { if (!disabled) { onSelect(ds); onClose(); } }}
               disabled={disabled}
               activeOpacity={0.7}
             >
-              <Text style={[cal.cellText, isSelected && cal.cellTextSelected, disabled && cal.cellTextDisabled]}>
+              <Text style={[
+                cal.cellText,
+                isToday && !isSelected && cal.cellTextToday,
+                isSelected && cal.cellTextSelected,
+                disabled && cal.cellTextDisabled,
+              ]}>
                 {day}
               </Text>
             </TouchableOpacity>
@@ -132,19 +194,26 @@ function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarPro
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function LoanCalculator({ onNext, onBack }: Props) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = toDateString(today);
-  const maxDate = new Date(today); maxDate.setDate(today.getDate() + MAX_DAYS);
-  const maxDateStr = toDateString(maxDate);
+  // Recalculate today + maxDate fresh each time this component mounts,
+  // so the allowed range always reflects the actual device date.
+  const getDateRange = useCallback(() => {
+    const t = getTodayLocal();
+    const max = new Date(t);
+    max.setDate(t.getDate() + MAX_DAYS);
+    return { today: t, todayStr: toDateString(t), maxDateStr: toDateString(max) };
+  }, []);
+
+  const { today, todayStr, maxDateStr } = getDateRange();
 
   const [amount, setAmount] = useState('2000');
+  // Default selection is today — the minimum allowed date.
   const [repayDate, setRepayDate] = useState(todayStr);
   const [isGreen, setIsGreen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
   const amt = parseFloat(amount) || 0;
-  const repayDay = new Date(repayDate + 'T00:00:00');
+  // Parse repayDate in local time to avoid UTC midnight shifting the date.
+  const repayDay = parseLocalDate(repayDate);
   const days = daysBetween(today, repayDay);
   const months = Math.max(days / 30, 1 / 30);
 
@@ -156,8 +225,9 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
   const totalCost = parseFloat((amt + interest + initiationFee + totalServiceFee + insurance).toFixed(2));
 
   const amtError = amt > 0 && (amt < MIN_LOAN || amt > MAX_LOAN);
-  const dateError = days < 1 || days > MAX_DAYS;
-  const isValid = amt >= MIN_LOAN && amt <= MAX_LOAN && days >= 1 && days <= MAX_DAYS;
+  // days === 0 means today is selected — that is valid (same-day repayment).
+  const dateError = days < 0 || days > MAX_DAYS;
+  const isValid = amt >= MIN_LOAN && amt <= MAX_LOAN && days >= 0 && days <= MAX_DAYS;
 
   const handleNext = () => {
     if (!isValid) return;
@@ -266,12 +336,16 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
             <Ionicons name="chevron-down" size={16} color="#94a3b8" />
           </TouchableOpacity>
 
-          {dateError && <Text style={s.errText}>Date must be 1–{MAX_DAYS} days from today</Text>}
+          {dateError && <Text style={s.errText}>Date must be today or within {MAX_DAYS} days from today</Text>}
 
           <View style={s.durationChip}>
             <Ionicons name="time-outline" size={14} color="#2563eb" />
             <Text style={s.durationText}>
-              {days > 0 ? `${days} day${days !== 1 ? 's' : ''} until repayment` : 'Select a future date'}
+              {days === 0
+                ? 'Repayment due today'
+                : days > 0
+                  ? `${days} day${days !== 1 ? 's' : ''} until repayment`
+                  : 'Select a valid date'}
             </Text>
           </View>
         </View>
@@ -349,7 +423,9 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
                 <Ionicons name="close" size={22} color="#64748b" />
               </TouchableOpacity>
             </View>
-            <Text style={s.modalSub}>Maximum {MAX_DAYS} days from today</Text>
+            <Text style={s.modalSub}>
+              {formatDisplay(todayStr)} — {formatDisplay(maxDateStr)}
+            </Text>
             <Calendar
               selected={repayDate}
               minDate={todayStr}
@@ -484,8 +560,11 @@ const cal = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
   cellSelected: { backgroundColor: '#2563eb', borderRadius: 999 },
-  cellDisabled: { opacity: 0.3 },
+  cellToday: { borderWidth: 1.5, borderColor: '#2563eb', borderRadius: 999 },
+  cellDisabled: { opacity: 0.28 },
   cellText: { fontSize: 14, fontWeight: '500', color: '#1e293b' },
   cellTextSelected: { color: '#fff', fontWeight: '800' },
+  cellTextToday: { color: '#2563eb', fontWeight: '700' },
   cellTextDisabled: { color: '#94a3b8' },
+  navBtnDisabled: { opacity: 0.3 },
 });
