@@ -70,7 +70,7 @@ export default function SettingsScreen({ onNavChange }: Props) {
 
           {/* ── Profile gradient card ── */}
           <LinearGradient
-            colors={['#1d4ed8', '#7c3aed']}
+            colors={['#14532d', '#16a34a']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.profileCard}
@@ -112,7 +112,7 @@ export default function SettingsScreen({ onNavChange }: Props) {
           <Text style={styles.sectionLabel}>ACCOUNT</Text>
           <View style={styles.card}>
             <SettingsItem
-              icon="person-outline" iconBg="#eff6ff" iconColor="#2563eb"
+              icon="person-outline" iconBg="#f0fdf4" iconColor="#16a34a"
               label="Profile Information"
               onPress={() => setSubScreen('profile')}
             />
@@ -145,7 +145,7 @@ export default function SettingsScreen({ onNavChange }: Props) {
               onToggle={setDarkMode}
             />
             <SettingsItem
-              icon="language-outline" iconBg="#eff6ff" iconColor="#0284c7"
+              icon="language-outline" iconBg="#f0fdf4" iconColor="#16a34a"
               label="Language"
               value="English"
               onPress={() => setSubScreen('language')}
@@ -182,7 +182,7 @@ export default function SettingsScreen({ onNavChange }: Props) {
               { icon: 'checkmark-circle-outline', color: '#16a34a', bg: '#f0fdf4', label: 'Loan Approved', sub: 'Your loan application was approved' },
               { icon: 'close-circle-outline',     color: '#dc2626', bg: '#fef2f2', label: 'Loan Rejected', sub: 'Application requires more information' },
               { icon: 'alarm-outline',             color: '#d97706', bg: '#fffbeb', label: 'Repayment Due', sub: 'R2,500 due on 30 Jul 2025' },
-              { icon: 'arrow-down-circle-outline', color: '#2563eb', bg: '#eff6ff', label: 'Payment Received', sub: 'R3,000 salary advance received' },
+              { icon: 'arrow-down-circle-outline', color: '#16a34a', bg: '#f0fdf4', label: 'Payment Received', sub: 'R3,000 salary advance received' },
             ].map((n, i, arr) => (
               <View key={n.label} style={[styles.notifRow, i < arr.length - 1 && styles.notifBorder]}>
                 <View style={[styles.notifIcon, { backgroundColor: n.bg }]}>
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   /* Profile card */
   profileCard: {
     marginHorizontal: 20, borderRadius: 20, padding: 20,
-    shadowColor: '#1d4ed8', shadowOffset: { width: 0, height: 10 },
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35, shadowRadius: 20, elevation: 10,
   },
   profileTop:  { flexDirection: 'row', alignItems: 'center', gap: 14 },

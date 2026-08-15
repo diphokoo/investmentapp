@@ -113,7 +113,7 @@ export default function DashboardScreen({ onNavChange }: Props) {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'Apply',   icon: 'cash-outline',        bg: '#eff6ff', color: '#2563eb', nav: 'loans' },
+  { label: 'Apply',   icon: 'cash-outline',        bg: '#f0fdf4', color: '#16a34a', nav: 'loans' },
   { label: 'Send',    icon: 'paper-plane-outline',  bg: '#f0fdf4', color: '#16a34a', nav: 'send' },
   { label: 'History', icon: 'time-outline',         bg: '#fdf4ff', color: '#9333ea', nav: 'history' },
   { label: 'Settings',icon: 'settings-outline',     bg: '#fff7ed', color: '#ea580c', nav: 'settings' },
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   section: { marginTop: 20, marginHorizontal: 20, gap: 12 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
-  seeAll: { fontSize: 13, fontWeight: '600', color: '#2563eb' },
+  seeAll: { fontSize: 13, fontWeight: '600', color: '#16a34a' },
   activityList: {
     backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,

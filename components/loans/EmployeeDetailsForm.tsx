@@ -46,7 +46,7 @@ export default function EmployeeDetailsForm({ company, onNext, onBack }: Props) 
   return (
     <View style={styles.wrap}>
       <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-        <Ionicons name="arrow-back" size={18} color="#2563eb" />
+        <Ionicons name="arrow-back" size={18} color="#16a34a" />
         <Text style={styles.backText}>Back</Text>
       </TouchableOpacity>
 
@@ -99,15 +99,15 @@ export default function EmployeeDetailsForm({ company, onNext, onBack }: Props) 
 const styles = StyleSheet.create({
   wrap: { gap: 14 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
-  backText: { fontSize: 14, fontWeight: '600', color: '#2563eb' },
+  backText: { fontSize: 14, fontWeight: '600', color: '#16a34a' },
   companyBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#eff6ff', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: '#bfdbfe',
+    backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: '#bbf7d0',
   },
   companyIcon: { fontSize: 28 },
-  companyName: { fontSize: 14, fontWeight: '700', color: '#1e3a8a' },
-  companySector: { fontSize: 11, color: '#3b82f6' },
+  companyName: { fontSize: 14, fontWeight: '700', color: '#14532d' },
+  companySector: { fontSize: 11, color: '#16a34a' },
   title: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
   sub: { fontSize: 13, color: '#64748b', marginTop: -6 },
   fieldGroup: { gap: 8 },
@@ -117,14 +117,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc',
   },
-  statusChipActive: { backgroundColor: '#eff6ff', borderColor: '#3b82f6' },
+  statusChipActive: { backgroundColor: '#f0fdf4', borderColor: '#16a34a' },
   statusText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-  statusTextActive: { color: '#2563eb' },
+  statusTextActive: { color: '#16a34a' },
   error: { fontSize: 11, color: '#dc2626' },
   nextBtn: {
-    height: 52, borderRadius: 14, backgroundColor: '#2563eb',
+    height: 52, borderRadius: 14, backgroundColor: '#16a34a',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 10, elevation: 5, marginTop: 4,
   },
   nextText: { color: '#fff', fontSize: 16, fontWeight: '700' },

@@ -32,7 +32,7 @@ export default function BottomNav({ active, onChange }: Props) {
             <Ionicons
               name={(isActive ? tab.activeIcon : tab.icon) as any}
               size={21}
-              color={isActive ? '#2563eb' : '#94a3b8'}
+              color={isActive ? '#16a34a' : '#94a3b8'}
             />
             <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
           </TouchableOpacity>
@@ -53,8 +53,8 @@ const styles = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, position: 'relative', paddingTop: 6 },
   activePill: {
     position: 'absolute', top: 0, width: 24, height: 3,
-    borderRadius: 2, backgroundColor: '#2563eb',
+    borderRadius: 2, backgroundColor: '#16a34a',
   },
   label: { fontSize: 10, fontWeight: '500', color: '#94a3b8' },
-  labelActive: { color: '#2563eb', fontWeight: '700' },
+  labelActive: { color: '#16a34a', fontWeight: '700' },
 });

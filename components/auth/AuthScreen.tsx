@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,7 +21,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <LinearGradient colors={['#0f2d6b', '#1a56c4', '#eff6ff']} style={styles.gradient}>
+      <LinearGradient colors={['#14532d', '#16a34a', '#f0fdf4']} style={styles.gradient}>
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
@@ -28,9 +29,8 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
         >
           <View style={styles.header}>
             <View style={styles.logoWrap}>
-              <Text style={styles.logoIcon}>💼</Text>
+              <Image source={require('../../assets/images/logo.png')} style={styles.logoImg} resizeMode="contain" />
             </View>
-            <Text style={styles.logo}>PayAdvance</Text>
             <Text style={styles.tagline}>Salary Advance & Payday Loans</Text>
             <Text style={styles.sub}>Fast · Secure · Compliant</Text>
           </View>
@@ -71,18 +71,16 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 20 },
   header: { alignItems: 'center', marginBottom: 28 },
   logoWrap: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 140, height: 100,
     alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  logoIcon: { fontSize: 36 },
-  logo: { fontSize: 28, fontWeight: '800', color: '#ffffff', letterSpacing: 0.5 },
+  logoImg: { width: 140, height: 100 },
   tagline: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 4, fontWeight: '600' },
   sub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
   card: {
     width: '100%', maxWidth: 400, backgroundColor: '#ffffff',
     borderRadius: 22, padding: 24,
-    shadowColor: '#0f2d6b', shadowOffset: { width: 0, height: 12 },
+    shadowColor: '#14532d', shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2, shadowRadius: 28, elevation: 12, gap: 20,
   },
   tabBar: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 12, padding: 4 },

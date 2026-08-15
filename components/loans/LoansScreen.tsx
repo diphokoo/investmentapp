@@ -47,7 +47,7 @@ export default function LoansScreen({ onNavChange }: Props) {
             <Text style={styles.headerTitle}>Loan Application</Text>
             <Text style={styles.headerSub}>Step {step} of 6 — {STEP_LABELS[step - 1]}</Text>
           </View>
-          <Ionicons name="cash-outline" size={26} color="#2563eb" />
+          <Ionicons name="cash-outline" size={26} color="#16a34a" />
         </View>
 
         {/* Step Progress */}
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 12, color: '#64748b', marginTop: 2 },
   stepRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginBottom: 16 },
   stepDot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#e2e8f0' },
-  stepDotActive: { backgroundColor: '#2563eb' },
+  stepDotActive: { backgroundColor: '#16a34a' },
   stepDotDone: { backgroundColor: '#86efac' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },

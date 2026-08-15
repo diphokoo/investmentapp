@@ -11,7 +11,7 @@ interface Props {
 }
 
 const GRADIENTS = {
-  primary: ['#1a56c4', '#3b82f6'] as const,
+  primary: ['#14532d', '#16a34a'] as const,
   danger:  ['#dc2626', '#ef4444'] as const,
   success: ['#15803d', '#16a34a'] as const,
   outline: ['#ffffff', '#ffffff'] as const,
@@ -27,7 +27,7 @@ export default function GradientButton({ label, onPress, loading, disabled, vari
         style={[styles.btn, isOutline && styles.outline, (disabled || loading) && styles.disabled]}
       >
         {loading
-          ? <ActivityIndicator color={isOutline ? '#2563eb' : '#fff'} size="small" />
+          ? <ActivityIndicator color={isOutline ? '#16a34a' : '#fff'} size="small" />
           : <Text style={[styles.text, isOutline && styles.textOutline]}>{label}</Text>
         }
       </LinearGradient>
@@ -38,11 +38,11 @@ export default function GradientButton({ label, onPress, loading, disabled, vari
 const styles = StyleSheet.create({
   btn: {
     height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#1a56c4', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
   },
-  outline: { borderWidth: 1.5, borderColor: '#2563eb', shadowOpacity: 0 },
+  outline: { borderWidth: 1.5, borderColor: '#16a34a', shadowOpacity: 0 },
   disabled: { opacity: 0.55 },
   text: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-  textOutline: { color: '#2563eb' },
+  textOutline: { color: '#16a34a' },
 });
