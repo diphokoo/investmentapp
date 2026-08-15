@@ -90,13 +90,14 @@ interface CalendarProps {
 
 function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarProps) {
   // Initialise the calendar view on the month that contains minDate (today).
-  // Using parseLocalDate avoids UTC midnight shifting the date back one day.
   const minLocal = parseLocalDate(minDate);
   const [viewYear, setViewYear] = useState(minLocal.getFullYear());
   const [viewMonth, setViewMonth] = useState(minLocal.getMonth());
 
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  // Second month is always viewMonth + 1
+  const nextMonthDate = new Date(viewYear, viewMonth + 1, 1);
+  const nextViewYear = nextMonthDate.getFullYear();
+  const nextViewMonth = nextMonthDate.getMonth();
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
@@ -107,7 +108,6 @@ function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarPro
     else setViewMonth(m => m + 1);
   };
 
-  // Prevent navigating to months entirely outside the allowed range.
   const canGoPrev = (): boolean => {
     const minLocal = parseLocalDate(minDate);
     return viewYear > minLocal.getFullYear() ||
@@ -115,22 +115,71 @@ function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarPro
   };
   const canGoNext = (): boolean => {
     const maxLocal = parseLocalDate(maxDate);
-    return viewYear < maxLocal.getFullYear() ||
-      (viewYear === maxLocal.getFullYear() && viewMonth < maxLocal.getMonth());
+    // The second month is nextViewMonth/nextViewYear — allow nav as long as
+    // the first month is still before maxDate's month.
+    return nextViewYear < maxLocal.getFullYear() ||
+      (nextViewYear === maxLocal.getFullYear() && nextViewMonth <= maxLocal.getMonth());
   };
 
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
+  const buildCells = (year: number, month: number) => {
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return [
+      ...Array(firstDay).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ] as (number | null)[];
+  };
 
-  // Build YYYY-MM-DD using local arithmetic — no UTC conversion.
-  const cellDateStr = (day: number): string =>
-    `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const cellDateStr = (year: number, month: number, day: number): string =>
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  const renderMonth = (year: number, month: number) => {
+    const cells = buildCells(year, month);
+    return (
+      <View key={`${year}-${month}`} style={cal.monthBlock}>
+        <Text style={cal.monthTitle}>{MONTHS[month]} {year}</Text>
+        <View style={cal.dowRow}>
+          {DAYS_OF_WEEK.map(d => <Text key={d} style={cal.dow}>{d}</Text>)}
+        </View>
+        <View style={cal.grid}>
+          {cells.map((day, idx) => {
+            if (!day) return <View key={`e${idx}`} style={cal.cell} />;
+            const ds = cellDateStr(year, month, day);
+            const isSelected = ds === selected;
+            const disabled = ds < minDate || ds > maxDate;
+            const isToday = ds === minDate;
+            return (
+              <TouchableOpacity
+                key={ds}
+                style={[
+                  cal.cell,
+                  isToday && !isSelected && cal.cellToday,
+                  isSelected && cal.cellSelected,
+                  disabled && cal.cellDisabled,
+                ]}
+                onPress={() => { if (!disabled) { onSelect(ds); onClose(); } }}
+                disabled={disabled}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  cal.cellText,
+                  isToday && !isSelected && cal.cellTextToday,
+                  isSelected && cal.cellTextSelected,
+                  disabled && cal.cellTextDisabled,
+                ]}>
+                  {day}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={cal.wrap}>
-      {/* Month / year navigation */}
+      {/* Navigation row */}
       <View style={cal.header}>
         <TouchableOpacity
           onPress={prevMonth}
@@ -139,7 +188,7 @@ function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarPro
         >
           <Ionicons name="chevron-back" size={20} color={canGoPrev() ? '#1e293b' : '#cbd5e1'} />
         </TouchableOpacity>
-        <Text style={cal.title}>{MONTHS[viewMonth]} {viewYear}</Text>
+        <Text style={cal.title}>{MONTHS[viewMonth]} – {MONTHS[nextViewMonth]} {nextViewYear}</Text>
         <TouchableOpacity
           onPress={nextMonth}
           style={[cal.navBtn, !canGoNext() && cal.navBtnDisabled]}
@@ -149,44 +198,10 @@ function Calendar({ selected, minDate, maxDate, onSelect, onClose }: CalendarPro
         </TouchableOpacity>
       </View>
 
-      {/* Day-of-week headers */}
-      <View style={cal.dowRow}>
-        {DAYS_OF_WEEK.map(d => <Text key={d} style={cal.dow}>{d}</Text>)}
-      </View>
-
-      {/* Day cells */}
-      <View style={cal.grid}>
-        {cells.map((day, idx) => {
-          if (!day) return <View key={`e${idx}`} style={cal.cell} />;
-          const ds = cellDateStr(day);
-          const isSelected = ds === selected;
-          // Disable if before today OR after maxDate (60 days from today).
-          const disabled = ds < minDate || ds > maxDate;
-          const isToday = ds === minDate;
-          return (
-            <TouchableOpacity
-              key={ds}
-              style={[
-                cal.cell,
-                isToday && !isSelected && cal.cellToday,
-                isSelected && cal.cellSelected,
-                disabled && cal.cellDisabled,
-              ]}
-              onPress={() => { if (!disabled) { onSelect(ds); onClose(); } }}
-              disabled={disabled}
-              activeOpacity={0.7}
-            >
-              <Text style={[
-                cal.cellText,
-                isToday && !isSelected && cal.cellTextToday,
-                isSelected && cal.cellTextSelected,
-                disabled && cal.cellTextDisabled,
-              ]}>
-                {day}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      {/* Two months side by side on wide screens, stacked on narrow */}
+      <View style={cal.twoMonths}>
+        {renderMonth(viewYear, viewMonth)}
+        {renderMonth(nextViewYear, nextViewMonth)}
       </View>
     </View>
   );
@@ -246,7 +261,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
   };
 
   const breakdown = [
-    { label: 'Principal',            value: fmt(amt),            icon: 'cash-outline',            color: '#2563eb' },
+    { label: 'Principal',            value: fmt(amt),            icon: 'cash-outline',            color: '#16a34a' },
     { label: `Interest (${rate}%)`,  value: fmt(interest),       icon: 'trending-up-outline',     color: isGreen ? '#16a34a' : '#6366f1' },
     { label: 'Initiation Fee',       value: fmt(initiationFee),  icon: 'receipt-outline',         color: '#d97706' },
     { label: `Service Fee (${Math.ceil(months)}mo × R60)`, value: fmt(totalServiceFee), icon: 'calendar-outline', color: '#0891b2' },
@@ -257,7 +272,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
     <>
       <View style={s.wrap}>
         <TouchableOpacity style={s.backBtn} onPress={onBack}>
-          <Ionicons name="arrow-back" size={18} color="#2563eb" />
+          <Ionicons name="arrow-back" size={18} color="#16a34a" />
           <Text style={s.backText}>Cancel</Text>
         </TouchableOpacity>
 
@@ -267,7 +282,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
         {/* ── Loan Details Card ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <View style={s.cardIcon}><Ionicons name="cash-outline" size={18} color="#2563eb" /></View>
+            <View style={s.cardIcon}><Ionicons name="cash-outline" size={18} color="#16a34a" /></View>
             <Text style={s.cardTitle}>Loan Details</Text>
           </View>
 
@@ -300,6 +315,9 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={s.greenLabel}>Green Loan</Text>
                 <Text style={s.greenSub}>Renewable energy purpose — 0.5% rate</Text>
+                <Text style={s.greenExplain}>
+                  A Green Loan is for eco-friendly purposes such as solar panels, energy-efficient appliances, or other renewable energy projects. It qualifies for a reduced interest rate of 0.5%.
+                </Text>
               </View>
             </View>
             <Pressable
@@ -339,7 +357,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
           {dateError && <Text style={s.errText}>Date must be today or within {MAX_DAYS} days from today</Text>}
 
           <View style={s.durationChip}>
-            <Ionicons name="time-outline" size={14} color="#2563eb" />
+            <Ionicons name="time-outline" size={14} color="#16a34a" />
             <Text style={s.durationText}>
               {days === 0
                 ? 'Repayment due today'
@@ -371,7 +389,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
         </View>
 
         {/* ── Summary Card ── */}
-        <LinearGradient colors={['#0f2d6b', '#1a56c4', '#3b82f6']} style={s.summaryCard}>
+        <LinearGradient colors={['#14532d', '#16a34a', '#4ade80']} style={s.summaryCard}>
           <Text style={s.summaryEyebrow}>TOTAL COST OF CREDIT</Text>
           <Text style={s.summaryTotal}>{fmt(totalCost)}</Text>
           <View style={s.summaryDivider} />
@@ -445,7 +463,7 @@ const s = StyleSheet.create({
   wrap: { gap: 14, paddingBottom: 8 },
 
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
-  backText: { fontSize: 14, fontWeight: '600', color: '#2563eb' },
+  backText: { fontSize: 14, fontWeight: '600', color: '#16a34a' },
   title: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
   sub: { fontSize: 13, color: '#64748b', marginTop: -6 },
 
@@ -456,7 +474,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
-  cardIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
+  cardIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
 
   // Input
@@ -482,6 +500,7 @@ const s = StyleSheet.create({
   toggleOn: { backgroundColor: '#bbf7d0' },
   toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 },
   toggleThumbOn: { backgroundColor: '#16a34a', transform: [{ translateX: 20 }] },
+  greenExplain: { fontSize: 11, color: '#166534', marginTop: 4, lineHeight: 16 },
   greenBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10,
@@ -498,10 +517,10 @@ const s = StyleSheet.create({
   dateText: { flex: 1, fontSize: 16, fontWeight: '700', color: '#0f172a' },
   durationChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#eff6ff', borderRadius: 8, padding: 8,
+    backgroundColor: '#f0fdf4', borderRadius: 8, padding: 8,
     alignSelf: 'flex-start',
   },
-  durationText: { fontSize: 12, fontWeight: '600', color: '#2563eb' },
+  durationText: { fontSize: 12, fontWeight: '600', color: '#16a34a' },
 
   // Breakdown
   breakRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
@@ -511,7 +530,7 @@ const s = StyleSheet.create({
   breakValue: { fontSize: 13, fontWeight: '700' },
 
   // Summary
-  summaryCard: { borderRadius: 20, padding: 22, gap: 10, shadowColor: '#1a56c4', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 20, elevation: 10 },
+  summaryCard: { borderRadius: 20, padding: 22, gap: 10, shadowColor: '#16a34a', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 20, elevation: 10 },
   summaryEyebrow: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.65)', letterSpacing: 1.5 },
   summaryTotal: { fontSize: 36, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
   summaryDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
@@ -530,9 +549,9 @@ const s = StyleSheet.create({
 
   // CTA
   nextBtn: {
-    height: 54, borderRadius: 14, backgroundColor: '#2563eb',
+    height: 54, borderRadius: 14, backgroundColor: '#16a34a',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
   },
   nextBtnDisabled: { backgroundColor: '#94a3b8', shadowOpacity: 0 },
@@ -559,12 +578,15 @@ const cal = StyleSheet.create({
   dow: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', color: '#94a3b8', paddingVertical: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  cellSelected: { backgroundColor: '#2563eb', borderRadius: 999 },
-  cellToday: { borderWidth: 1.5, borderColor: '#2563eb', borderRadius: 999 },
+  cellSelected: { backgroundColor: '#16a34a', borderRadius: 999 },
+  cellToday: { borderWidth: 1.5, borderColor: '#16a34a', borderRadius: 999 },
   cellDisabled: { opacity: 0.28 },
   cellText: { fontSize: 14, fontWeight: '500', color: '#1e293b' },
   cellTextSelected: { color: '#fff', fontWeight: '800' },
-  cellTextToday: { color: '#2563eb', fontWeight: '700' },
+  cellTextToday: { color: '#16a34a', fontWeight: '700' },
   cellTextDisabled: { color: '#94a3b8' },
   navBtnDisabled: { opacity: 0.3 },
+  twoMonths: { flexDirection: 'column', gap: 16 },
+  monthBlock: { gap: 4 },
+  monthTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a', textAlign: 'center', marginBottom: 2 },
 });

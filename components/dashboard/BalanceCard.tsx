@@ -17,7 +17,7 @@ export default function BalanceCard({
 
   return (
     <LinearGradient
-      colors={['#0f2d6b', '#1a56c4', '#3b82f6']}
+      colors={['#14532d', '#16a34a', '#4ade80']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.card}
@@ -65,7 +65,7 @@ export default function BalanceCard({
 const styles = StyleSheet.create({
   card: {
     borderRadius: 20, padding: 22, marginHorizontal: 20,
-    shadowColor: '#1a56c4', shadowOffset: { width: 0, height: 10 },
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35, shadowRadius: 20, elevation: 10,
   },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
