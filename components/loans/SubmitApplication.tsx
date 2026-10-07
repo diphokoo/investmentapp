@@ -36,15 +36,17 @@ export default function SubmitApplication({ company, loanDetails, onBack, onDone
       <Text style={styles.sub}>Please review your application before submitting</Text>
 
       {/* Summary Card */}
-      <LinearGradient colors={['#0f2d6b', '#1a56c4']} style={styles.summaryCard}>
+      <LinearGradient colors={['#14532d', '#16a34a']} style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>Application Summary</Text>
         <View style={styles.summaryDivider} />
         {[
-          { label: 'Employer', value: company.name },
-          { label: 'Loan Amount', value: `R${loanDetails.amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` },
+          { label: 'Employer',         value: company.name },
+          { label: 'Loan Type',        value: loanDetails.isGreenLoan ? '🌿 Green Loan' : 'Standard Loan' },
+          { label: 'Loan Amount',      value: `R${loanDetails.amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` },
+          { label: 'Interest Rate',    value: `${loanDetails.interestRate}%` },
           { label: 'Repayment Period', value: `${loanDetails.days} days` },
-          { label: 'Total Repayment', value: `R${loanDetails.totalRepayment.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` },
-          { label: 'Due Date', value: loanDetails.dueDate },
+          { label: 'Total Repayment',  value: `R${loanDetails.totalRepayment.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` },
+          { label: 'Due Date',         value: loanDetails.dueDate },
         ].map(row => (
           <View key={row.label} style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>{row.label}</Text>
@@ -52,6 +54,22 @@ export default function SubmitApplication({ company, loanDetails, onBack, onDone
           </View>
         ))}
       </LinearGradient>
+
+      {/* Green Loan documents */}
+      {loanDetails.isGreenLoan && loanDetails.greenDocuments.length > 0 && (
+        <View style={styles.greenDocsCard}>
+          <View style={styles.greenDocsHeader}>
+            <Ionicons name="document-attach-outline" size={16} color="#14532d" />
+            <Text style={styles.greenDocsTitle}>Green Loan Supporting Documents</Text>
+          </View>
+          {loanDetails.greenDocuments.map((name, i) => (
+            <View key={i} style={styles.greenDocRow}>
+              <Ionicons name="document-text" size={14} color="#16a34a" />
+              <Text style={styles.greenDocName} numberOfLines={1}>{name}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.disclaimerBox}>
         <Ionicons name="information-circle-outline" size={16} color="#2563eb" />
@@ -116,10 +134,18 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: 13, fontWeight: '700', color: '#fff' },
   disclaimerBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#eff6ff', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#bfdbfe',
+    backgroundColor: '#f0fdf4', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: '#bbf7d0',
   },
-  disclaimerText: { flex: 1, fontSize: 11, color: '#1e40af', lineHeight: 17 },
+  disclaimerText: { flex: 1, fontSize: 11, color: '#166534', lineHeight: 17 },
+  greenDocsCard: {
+    backgroundColor: '#f0fdf4', borderRadius: 14, padding: 14, gap: 8,
+    borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  greenDocsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  greenDocsTitle: { fontSize: 13, fontWeight: '700', color: '#14532d' },
+  greenDocRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  greenDocName: { flex: 1, fontSize: 12, color: '#166534', fontWeight: '500' },
   submitBtn: {
     height: 56, borderRadius: 14, backgroundColor: '#16a34a',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,

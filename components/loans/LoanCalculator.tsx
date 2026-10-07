@@ -22,6 +22,7 @@ export interface LoanDetails {
   initiationFee: number;
   totalCostOfCredit: number;
   isGreenLoan: boolean;
+  greenDocuments: string[];
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -32,12 +33,12 @@ const MONTHLY_SERVICE_FEE = 60;
 const INSURANCE_RATE = 0.005; // 0.5% of principal
 
 function getRate(amount: number, isGreen: boolean): number {
-  if (isGreen) return 0.5;
-  return amount >= 8_000 ? 2.9 : 5;
+  if (amount >= 8_000) return 2.9;
+  return isGreen ? 4.5 : 5;
 }
 
-function calcInitiationFee(amount: number): number {
-  return parseFloat((165 + 0.1 * amount).toFixed(2));
+function calcInitiationFee(): number {
+  return 165;
 }
 
 function fmt(n: number) {
@@ -224,6 +225,8 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
   // Default selection is today — the minimum allowed date.
   const [repayDate, setRepayDate] = useState(todayStr);
   const [isGreen, setIsGreen] = useState(false);
+  const [greenDocs, setGreenDocs] = useState<string[]>([]);
+  const [greenDocError, setGreenDocError] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
   const amt = parseFloat(amount) || 0;
@@ -234,7 +237,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
 
   const rate = getRate(amt, isGreen);
   const interest = parseFloat(((amt * rate) / 100).toFixed(2));
-  const initiationFee = calcInitiationFee(amt);
+  const initiationFee = calcInitiationFee();
   const totalServiceFee = parseFloat((MONTHLY_SERVICE_FEE * months).toFixed(2));
   const insurance = parseFloat((amt * INSURANCE_RATE).toFixed(2));
   const totalCost = parseFloat((amt + interest + initiationFee + totalServiceFee + insurance).toFixed(2));
@@ -244,8 +247,36 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
   const dateError = days < 0 || days > MAX_DAYS;
   const isValid = amt >= MIN_LOAN && amt <= MAX_LOAN && days >= 0 && days <= MAX_DAYS;
 
+  // Clear docs and error when Green Loan is toggled off
+  const handleGreenToggle = () => {
+    setIsGreen(v => {
+      if (v) { setGreenDocs([]); setGreenDocError(false); }
+      return !v;
+    });
+  };
+
+  // Simulate file pick — in production replace with expo-document-picker
+  const handlePickDoc = () => {
+    const mockNames = [
+      'solar_invoice.pdf', 'energy_certificate.pdf',
+      'green_project_quote.pdf', 'utility_bill.pdf', 'installation_proof.jpg',
+    ];
+    const name = mockNames[Math.floor(Math.random() * mockNames.length)];
+    setGreenDocs(prev => [...prev, name]);
+    setGreenDocError(false);
+  };
+
+  const handleRemoveDoc = (index: number) => {
+    setGreenDocs(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleNext = () => {
     if (!isValid) return;
+    if (isGreen && greenDocs.length === 0) {
+      setGreenDocError(true);
+      return;
+    }
+    setGreenDocError(false);
     onNext({
       amount: amt,
       days,
@@ -257,6 +288,7 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
       initiationFee,
       totalCostOfCredit: totalCost,
       isGreenLoan: isGreen,
+      greenDocuments: greenDocs,
     });
   };
 
@@ -314,15 +346,15 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.greenLabel}>Green Loan</Text>
-                <Text style={s.greenSub}>Renewable energy purpose — 0.5% rate</Text>
+                <Text style={s.greenSub}>Renewable energy purpose — 0.5% discount applied</Text>
                 <Text style={s.greenExplain}>
-                  A Green Loan is for eco-friendly purposes such as solar panels, energy-efficient appliances, or other renewable energy projects. It qualifies for a reduced interest rate of 0.5%.
+                  A Green Loan is for eco-friendly purposes such as solar panels, energy-efficient appliances, or other renewable energy projects. It qualifies for a 0.5% discount off the standard interest rate, reducing it from 5% to 4.5%.
                 </Text>
               </View>
             </View>
             <Pressable
               style={[s.toggle, isGreen && s.toggleOn]}
-              onPress={() => setIsGreen(v => !v)}
+              onPress={handleGreenToggle}
             >
               <View style={[s.toggleThumb, isGreen && s.toggleThumbOn]} />
             </Pressable>
@@ -330,7 +362,49 @@ export default function LoanCalculator({ onNext, onBack }: Props) {
           {isGreen && (
             <View style={s.greenBanner}>
               <Ionicons name="leaf" size={14} color="#16a34a" />
-              <Text style={s.greenBannerText}>Green Loan rate of 0.5% overrides standard rate</Text>
+              <Text style={s.greenBannerText}>Green Loan: 0.5% discount applied — rate reduced from 5% to 4.5%</Text>
+            </View>
+          )}
+
+          {/* ── Green Loan Document Upload ── */}
+          {isGreen && (
+            <View style={s.greenDocSection}>
+              <View style={s.greenDocHeader}>
+                <Ionicons name="document-attach-outline" size={16} color="#14532d" />
+                <Text style={s.greenDocTitle}>Supporting Documents Required</Text>
+              </View>
+              <Text style={s.greenDocSub}>
+                To qualify for a Green Loan, please upload at least one document proving the eco-friendly purpose (e.g. solar quote, energy certificate, installation invoice).
+              </Text>
+
+              {/* Uploaded files list */}
+              {greenDocs.map((name, i) => (
+                <View key={i} style={s.docRow}>
+                  <View style={s.docIconWrap}>
+                    <Ionicons name="document-text" size={18} color="#16a34a" />
+                  </View>
+                  <Text style={s.docName} numberOfLines={1}>{name}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveDoc(i)} style={s.docRemove}>
+                    <Ionicons name="close-circle" size={18} color="#dc2626" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {/* Upload button */}
+              <TouchableOpacity style={s.uploadBtn} onPress={handlePickDoc} activeOpacity={0.8}>
+                <Ionicons name="cloud-upload-outline" size={18} color="#16a34a" />
+                <Text style={s.uploadBtnText}>
+                  {greenDocs.length === 0 ? 'Upload Supporting Document' : 'Upload Another Document'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Validation error */}
+              {greenDocError && (
+                <View style={s.docErrorBox}>
+                  <Ionicons name="alert-circle" size={14} color="#dc2626" />
+                  <Text style={s.docErrorText}>Please upload at least one supporting document to proceed with a Green Loan.</Text>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -538,6 +612,35 @@ const s = StyleSheet.create({
   summaryItem: { width: '47%' },
   summaryItemLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
   summaryItemValue: { fontSize: 13, fontWeight: '700', color: '#fff', marginTop: 2 },
+
+  // Green doc upload
+  greenDocSection: {
+    backgroundColor: '#f0fdf4', borderRadius: 14, padding: 14, gap: 10,
+    borderWidth: 1, borderColor: '#bbf7d0', marginTop: 4,
+  },
+  greenDocHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  greenDocTitle: { fontSize: 13, fontWeight: '700', color: '#14532d', flex: 1 },
+  greenDocSub: { fontSize: 11, color: '#166534', lineHeight: 16 },
+  docRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#fff', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: '#86efac',
+  },
+  docIconWrap: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' },
+  docName: { flex: 1, fontSize: 12, fontWeight: '600', color: '#1e293b' },
+  docRemove: { padding: 2 },
+  uploadBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: '#16a34a', borderStyle: 'dashed',
+    borderRadius: 12, padding: 12, backgroundColor: '#fff',
+  },
+  uploadBtnText: { fontSize: 13, fontWeight: '700', color: '#16a34a' },
+  docErrorBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: '#fef2f2', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: '#fecaca',
+  },
+  docErrorText: { flex: 1, fontSize: 11, color: '#dc2626', lineHeight: 16 },
 
   // Warn
   warnBox: {
