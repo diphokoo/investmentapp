@@ -1,9 +1,12 @@
+import '../global';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
+declare global { var Buffer: typeof import('buffer').Buffer; }
 
 SplashScreen.preventAutoHideAsync();
 

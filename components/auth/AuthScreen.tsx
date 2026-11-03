@@ -52,7 +52,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
             </View>
             {activeTab === 'login'
               ? <LoginForm onLoginSuccess={onLoginSuccess} />
-              : <RegisterForm />}
+              : <RegisterForm onRegistrationComplete={() => setActiveTab('login')} />}
           </View>
 
           <Text style={styles.legal}>
