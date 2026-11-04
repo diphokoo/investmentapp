@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export type NavTab = 'send' | 'history' | 'loans' | 'settings' | 'logout';
+export type NavTab = 'history' | 'loans' | 'settings' | 'logout';
 
 interface Props {
   active: NavTab;
@@ -9,8 +9,7 @@ interface Props {
 }
 
 const TABS: { key: NavTab; label: string; icon: string; activeIcon: string }[] = [
-  { key: 'send',     label: 'Send',     icon: 'paper-plane-outline', activeIcon: 'paper-plane' },
-  { key: 'history',  label: 'History',  icon: 'time-outline',        activeIcon: 'time' },
+  { key: 'history',  label: 'Home',  icon: 'home',        activeIcon: 'home' },
   { key: 'loans',    label: 'Loans',    icon: 'cash-outline',        activeIcon: 'cash' },
   { key: 'settings', label: 'Settings', icon: 'settings-outline',    activeIcon: 'settings' },
   { key: 'logout',   label: 'Logout',   icon: 'log-out-outline',     activeIcon: 'log-out-outline' },

@@ -76,9 +76,6 @@ export default function DashboardScreen({ onNavChange }: Props) {
                 <Text style={styles.loanBannerSub}>R2,500.00 due on 30 Jul 2025</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.payNowBtn} onPress={() => handleNav('send')}>
-              <Text style={styles.payNowText}>Pay Now</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Recent Activity */}
@@ -114,7 +111,7 @@ export default function DashboardScreen({ onNavChange }: Props) {
 
 const QUICK_ACTIONS = [
   { label: 'Apply',   icon: 'cash-outline',        bg: '#f0fdf4', color: '#16a34a', nav: 'loans' },
-  { label: 'History', icon: 'time-outline',         bg: '#fdf4ff', color: '#9333ea', nav: 'history' },
+  { label: 'Home', icon: 'home',         bg: '#fdf4ff', color: '#9333ea', nav: 'history' },
   { label: 'Settings',icon: 'settings-outline',     bg: '#fff7ed', color: '#ea580c', nav: 'settings' },
 ];
 

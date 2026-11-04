@@ -15,7 +15,7 @@ function StatusRow({ label, done }: { label: string; done: boolean }) {
     <View style={styles.statusRow}>
       <View style={[styles.statusIcon, done ? styles.statusIconDone : styles.statusIconPending]}>
         <Ionicons
-          name={done ? 'checkmark' : 'time-outline'}
+          name={done ? 'checkmark' : 'home'}
           size={14}
           color={done ? '#fff' : '#94a3b8'}
         />

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Image, Modal, StyleSheet, View } from 'react-native';
 import AuthScreen from '@/components/auth/AuthScreen';
 import DashboardScreen from '@/components/dashboard/DashboardScreen';
-import SendScreen from '@/components/send/SendScreen';
 import HistoryScreen from '@/components/history/HistoryScreen';
 import LoansScreen from '@/components/loans/LoansScreen';
 import SettingsScreen from '@/components/settings/SettingsScreen';
@@ -51,7 +50,6 @@ function AppContent() {
   return (
     <View style={styles.root}>
       {screen === 'history'  && <DashboardScreen onNavChange={handleNav} />}
-      {screen === 'send'     && <SendScreen      onNavChange={handleNav} />}
       {screen === 'loans'    && <LoansScreen     onNavChange={handleNav} />}
       {screen === 'settings' && <SettingsScreen  onNavChange={handleNav} />}
 
