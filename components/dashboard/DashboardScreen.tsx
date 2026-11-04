@@ -114,7 +114,6 @@ export default function DashboardScreen({ onNavChange }: Props) {
 
 const QUICK_ACTIONS = [
   { label: 'Apply',   icon: 'cash-outline',        bg: '#f0fdf4', color: '#16a34a', nav: 'loans' },
-  { label: 'Send',    icon: 'paper-plane-outline',  bg: '#f0fdf4', color: '#16a34a', nav: 'send' },
   { label: 'History', icon: 'time-outline',         bg: '#fdf4ff', color: '#9333ea', nav: 'history' },
   { label: 'Settings',icon: 'settings-outline',     bg: '#fff7ed', color: '#ea580c', nav: 'settings' },
 ];
