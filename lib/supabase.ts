@@ -85,6 +85,62 @@ export async function signIn(email: string, password: string): Promise<AppUser> 
   return data as AppUser;
 }
 
+// ── Dashboard Data ───────────────────────────────────────────────────────────
+
+export interface LoanRecord {
+  id:                  string;
+  status:              string;
+  requested_amount:    number;
+  approved_amount:     number | null;
+  outstanding_balance: number;
+  due_date:            string | null;
+  submitted_at:        string | null;
+  created_at:          string;
+}
+
+export interface DashboardData {
+  availableCredit: number;   // rands (not cents)
+  outstanding:     number;   // rands
+  nextDueDate:     string | null;
+  recentLoans:     LoanRecord[];
+}
+
+export async function fetchDashboardData(userId: string, creditLimitCents: number): Promise<DashboardData> {
+  // Use security-definer RPC to bypass RLS (custom auth — auth.uid() is null)
+  const { data, error } = await supabase.rpc('fetch_user_loans', { p_user_id: userId });
+
+  if (error) throw new Error(error.message);
+
+  const loans: LoanRecord[] = data ?? [];
+
+  const ACTIVE = ['active', 'approved', 'disbursed'];
+  const activeLoans = loans.filter(l => ACTIVE.includes(l.status));
+
+  const totalOutstandingCents = activeLoans.reduce((sum, l) => sum + (l.outstanding_balance ?? 0), 0);
+  const availableCreditCents  = Math.max(0, creditLimitCents - totalOutstandingCents);
+
+  // Next due date: earliest future due_date among active loans with outstanding balance
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcomingDates = activeLoans
+    .filter(l => l.due_date && l.outstanding_balance > 0)
+    .map(l => new Date(l.due_date!))
+    .filter(d => d >= today)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  const nextDueDateRaw = upcomingDates[0] ?? null;
+  const nextDueDate = nextDueDateRaw
+    ? nextDueDateRaw.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+
+  return {
+    availableCredit: availableCreditCents / 100,
+    outstanding:     totalOutstandingCents / 100,
+    nextDueDate,
+    recentLoans:     loans.slice(0, 5),
+  };
+}
+
 export async function signOut(): Promise<void> {
   // Clear the stored session from the client
   await supabase.auth.signOut().catch(() => {});
