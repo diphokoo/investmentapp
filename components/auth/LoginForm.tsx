@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -8,32 +9,38 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useAuth } from '@/lib/auth-context';
 
 interface Props { onLoginSuccess?: () => void; }
 
 export default function LoginForm({ onLoginSuccess }: Props) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [focused, setFocused] = useState<string | null>(null);
+  const { login, loading, error, clearError } = useAuth();
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [showPassword, setShowPw] = useState(false);
+  const [focused, setFocused]     = useState<string | null>(null);
 
-  const inputStyle = (field: string) => [
-    styles.input,
-    focused === field && styles.inputFocused,
-  ];
+  const handleSignIn = async () => {
+    if (!email.trim() || !password) return;
+    const ok = await login(email.trim().toLowerCase(), password);
+    if (ok) onLoginSuccess?.();
+  };
 
   return (
     <View style={styles.container}>
       {/* Email */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Email or Username</Text>
+        <Text style={styles.label}>Email</Text>
         <View style={[styles.inputWrapper, focused === 'email' && styles.inputWrapperFocused]}>
-          <Ionicons name="person-outline" size={18} color="#94a3b8" style={styles.iconLeft} />
+          <Ionicons name="mail-outline" size={18} color="#94a3b8" style={styles.iconLeft} />
           <TextInput
-            style={inputStyle('email')}
+            style={styles.input}
             placeholder="you@example.com"
             placeholderTextColor="#cbd5e1"
             keyboardType="email-address"
             autoCapitalize="none"
+            value={email}
+            onChangeText={v => { setEmail(v); clearError(); }}
             onFocus={() => setFocused('email')}
             onBlur={() => setFocused(null)}
           />
@@ -46,127 +53,85 @@ export default function LoginForm({ onLoginSuccess }: Props) {
         <View style={[styles.inputWrapper, focused === 'password' && styles.inputWrapperFocused]}>
           <Ionicons name="lock-closed-outline" size={18} color="#94a3b8" style={styles.iconLeft} />
           <TextInput
-            style={[inputStyle('password'), { flex: 1 }]}
+            style={[styles.input, { flex: 1 }]}
             placeholder="••••••••"
             placeholderTextColor="#cbd5e1"
             secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={v => { setPassword(v); clearError(); }}
             onFocus={() => setFocused('password')}
             onBlur={() => setFocused(null)}
           />
-          <Pressable onPress={() => setShowPassword(v => !v)} style={styles.iconRight}>
+          <Pressable onPress={() => setShowPw(v => !v)} style={styles.iconRight}>
             <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#94a3b8" />
           </Pressable>
         </View>
       </View>
 
-      {/* Remember Me + Forgot */}
+      {/* Forgot */}
       <View style={styles.row}>
-        <Pressable style={styles.checkRow} onPress={() => setRememberMe(v => !v)}>
-          <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
-            {rememberMe && <Ionicons name="checkmark" size={12} color="#fff" />}
-          </View>
-          <Text style={styles.checkLabel}>Remember me</Text>
-        </Pressable>
+        <View />
         <TouchableOpacity>
           <Text style={styles.forgotText}>Forgot Password?</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Error */}
+      {!!error && (
+        <View style={styles.errorBox}>
+          <Ionicons name="alert-circle-outline" size={16} color="#dc2626" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
       {/* Sign In Button */}
-      <TouchableOpacity style={styles.button} activeOpacity={0.85} onPress={onLoginSuccess}>
-        <Text style={styles.buttonText}>Sign In</Text>
+      <TouchableOpacity
+        style={[styles.button, (!email || !password || loading) && styles.buttonDisabled]}
+        activeOpacity={0.85}
+        onPress={handleSignIn}
+        disabled={!email || !password || loading}
+      >
+        {loading
+          ? <ActivityIndicator color="#fff" size="small" />
+          : <Text style={styles.buttonText}>Sign In</Text>
+        }
       </TouchableOpacity>
-
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>OR</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Social Buttons */}
-      <View style={styles.socialRow}>
-        <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-          <Ionicons name="logo-google" size={18} color="#4285F4" />
-          <Text style={styles.socialText}>Google</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-          <Ionicons name="logo-apple" size={18} color="#000" />
-          <Text style={styles.socialText}>Apple</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 16 },
-  fieldGroup: { gap: 6 },
-  label: { fontSize: 12, color: '#64748b', fontWeight: '500', letterSpacing: 0.3 },
+  container:          { gap: 16 },
+  fieldGroup:         { gap: 6 },
+  label:              { fontSize: 12, color: '#64748b', fontWeight: '500', letterSpacing: 0.3 },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 12,
-    height: 50,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f8fafc', borderRadius: 12,
+    borderWidth: 1.5, borderColor: '#e2e8f0',
+    paddingHorizontal: 12, height: 50,
   },
   inputWrapperFocused: {
     borderColor: '#16a34a',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15, shadowRadius: 6, elevation: 2,
   },
-  iconLeft: { marginRight: 10 },
-  iconRight: { padding: 4 },
-  input: { flex: 1, fontSize: 15, color: '#1e293b' },
-  inputFocused: {},
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: '#cbd5e1',
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconLeft:       { marginRight: 10 },
+  iconRight:      { padding: 4 },
+  input:          { flex: 1, fontSize: 15, color: '#1e293b' },
+  row:            { flexDirection: 'row', justifyContent: 'flex-end' },
+  forgotText:     { fontSize: 13, color: '#16a34a', fontWeight: '600' },
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fef2f2', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: '#fecaca',
   },
-  checkboxActive: { backgroundColor: '#16a34a', borderColor: '#16a34a' },
-  checkLabel: { fontSize: 13, color: '#64748b' },
-  forgotText: { fontSize: 13, color: '#16a34a', fontWeight: '600' },
+  errorText:      { flex: 1, fontSize: 12, color: '#dc2626' },
   button: {
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#16a34a',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
-  dividerText: { fontSize: 12, color: '#94a3b8', fontWeight: '500' },
-  socialRow: { flexDirection: 'row', gap: 12 },
-  socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-  },
-  socialText: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+  buttonDisabled: { opacity: 0.55 },
+  buttonText:     { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 });
