@@ -8,11 +8,11 @@ interface Props {
   onChange: (tab: NavTab) => void;
 }
 
-const TABS: { key: NavTab; label: string; icon: string; activeIcon: string }[] = [
+const TABS: { key: NavTab; label: string; icon: string; activeIcon: string; danger?: boolean }[] = [
   { key: 'history',  label: 'Home',  icon: 'home',        activeIcon: 'home' },
   { key: 'loans',    label: 'Loans',    icon: 'cash-outline',        activeIcon: 'cash' },
   { key: 'settings', label: 'Settings', icon: 'settings-outline',    activeIcon: 'settings' },
-  { key: 'logout',   label: 'Logout',   icon: 'log-out-outline',     activeIcon: 'log-out-outline' },
+  { key: 'logout',   label: 'Logout',   icon: 'log-out-outline',     activeIcon: 'log-out-outline', danger: true },
 ];
 
 export default function BottomNav({ active, onChange }: Props) {
@@ -20,6 +20,7 @@ export default function BottomNav({ active, onChange }: Props) {
     <View style={styles.bar}>
       {TABS.map(tab => {
         const isActive = active === tab.key;
+        const color = tab.danger ? '#ef4444' : isActive ? '#16a34a' : '#94a3b8';
         return (
           <TouchableOpacity
             key={tab.key}
@@ -27,13 +28,13 @@ export default function BottomNav({ active, onChange }: Props) {
             onPress={() => onChange(tab.key)}
             activeOpacity={0.7}
           >
-            {isActive && <View style={styles.activePill} />}
+            {isActive && !tab.danger && <View style={styles.activePill} />}
             <Ionicons
               name={(isActive ? tab.activeIcon : tab.icon) as any}
               size={21}
-              color={isActive ? '#16a34a' : '#94a3b8'}
+              color={color}
             />
-            <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
+            <Text style={[styles.label, isActive && !tab.danger && styles.labelActive, tab.danger && styles.labelDanger]}>{tab.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -54,6 +55,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, width: 24, height: 3,
     borderRadius: 2, backgroundColor: '#16a34a',
   },
-  label: { fontSize: 10, fontWeight: '500', color: '#94a3b8' },
+  label:       { fontSize: 10, fontWeight: '500', color: '#94a3b8' },
   labelActive: { color: '#16a34a', fontWeight: '700' },
+  labelDanger: { color: '#ef4444', fontWeight: '600' },
 });

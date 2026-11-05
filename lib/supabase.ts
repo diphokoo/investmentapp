@@ -36,6 +36,12 @@ export interface AppUser {
   appearance:            string;
   notifications_enabled: boolean;
   created_at:            string;
+  // Employment fields
+  employee_number:       string | null;
+  monthly_salary:        number | null;  // cents
+  pay_day:               number | null;
+  employer_industry:     string | null;
+  date_of_birth:         string | null;
 }
 
 // ── Registration ─────────────────────────────────────────────────────────────
@@ -139,6 +145,148 @@ export async function fetchDashboardData(userId: string, creditLimitCents: numbe
     nextDueDate,
     recentLoans:     loans.slice(0, 5),
   };
+}
+
+// ── Loan Application ─────────────────────────────────────────────────────────
+
+export interface Employer {
+  id:       string;
+  name:     string;
+  industry: string;
+}
+
+export async function fetchEmployers(): Promise<Employer[]> {
+  const { data, error } = await supabase
+    .from('employers')
+    .select('id, name, industry')
+    .eq('is_active', true)
+    .order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Employer[];
+}
+
+export interface StagedDocument {
+  documentType: DocumentType;
+  fileUri:      string;
+  fileName:     string;
+  mimeType:     string;
+}
+
+export interface ConsentRecord {
+  type:    string;
+  version: string;
+  text:    string;
+}
+
+export async function uploadStagedDocument(params: {
+  userId:   string;
+  doc:      StagedDocument;
+}): Promise<{ file_url: string; file_name: string; mime_type: string; document_type: string }> {
+  const BUCKET      = 'zaris-documents';
+  const storagePath = `${params.userId}/loans/${params.doc.documentType}_${Date.now()}_${params.doc.fileName}`;
+
+  let uploadData: Uint8Array | Blob;
+  if (Platform.OS === 'web') {
+    const response = await fetch(params.doc.fileUri);
+    uploadData = await response.blob();
+  } else {
+    const FileSystem = await import('expo-file-system/legacy');
+    const base64 = await FileSystem.readAsStringAsync(params.doc.fileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    uploadData = Buffer.from(base64, 'base64');
+  }
+
+  const { error: storageError } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, uploadData, { contentType: params.doc.mimeType, upsert: true });
+  if (storageError) throw new Error(`Upload failed: ${storageError.message}`);
+
+  const { data: signedData, error: signedError } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 365 * 10);
+  if (signedError || !signedData?.signedUrl)
+    throw new Error(`Could not generate file URL: ${signedError?.message}`);
+
+  return {
+    file_url:      signedData.signedUrl,
+    file_name:     params.doc.fileName,
+    mime_type:     params.doc.mimeType,
+    document_type: params.doc.documentType,
+  };
+}
+
+export async function submitLoanApplication(params: {
+  userId:          string;
+  employerId:      string;
+  requestedAmount: number;  // cents
+  totalRepayable:  number;  // cents
+  interestRateBps: number;
+  termDays:        number;
+  dueDate:         string;  // YYYY-MM-DD
+  purpose:         string;
+  isGreenLoan:     boolean;
+  employeeNumber:  string;
+  monthlySalary:   number;  // cents
+  payDay:          number;
+  signature:       string;
+  consents:        ConsentRecord[];
+  stagedDocs:      StagedDocument[];
+  onProgress?:     (msg: string) => void;
+}): Promise<string> {
+  params.onProgress?.('Uploading documents…');
+
+  // Upload all staged files first — collect results
+  const uploadedDocs: { file_url: string; file_name: string; mime_type: string; document_type: string }[] = [];
+  const uploadedPaths: string[] = [];
+
+  try {
+    for (const doc of params.stagedDocs) {
+      const result = await uploadStagedDocument({ userId: params.userId, doc });
+      uploadedDocs.push(result);
+      uploadedPaths.push(
+        `${params.userId}/loans/${doc.documentType}_${doc.fileName}`
+      );
+    }
+  } catch (err: any) {
+    // Clean up any files already uploaded before the failure
+    for (const path of uploadedPaths) {
+      await supabase.storage.from('zaris-documents').remove([path]).catch(() => {});
+    }
+    throw err;
+  }
+
+  params.onProgress?.('Saving application…');
+
+  const { data, error } = await supabase.rpc('submit_loan_application', {
+    p_user_id:          params.userId,
+    p_employer_id:      params.employerId,
+    p_requested_amount: params.requestedAmount,
+    p_total_repayable:  params.totalRepayable,
+    p_interest_rate_bps:params.interestRateBps,
+    p_term_days:        params.termDays,
+    p_due_date:         params.dueDate,
+    p_purpose:          params.purpose,
+    p_is_green_loan:    params.isGreenLoan,
+    p_employee_number:  params.employeeNumber,
+    p_monthly_salary:   params.monthlySalary,
+    p_pay_day:          params.payDay,
+    p_signature:        params.signature,
+    p_consents:         params.consents,
+    p_documents:        uploadedDocs,
+  });
+
+  if (error) {
+    // DB failed — clean up uploaded files
+    for (const path of uploadedPaths) {
+      await supabase.storage.from('zaris-documents').remove([path]).catch(() => {});
+    }
+    if (error.message.includes('DUPLICATE_SUBMISSION'))
+      throw new Error('A submission is already in progress. Please wait a moment and try again.');
+    throw new Error(error.message);
+  }
+
+  return data as string;
 }
 
 export async function signOut(): Promise<void> {
