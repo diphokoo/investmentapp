@@ -70,7 +70,9 @@ export default function SettingsScreen({ onNavChange }: Props) {
   const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Your account';
   const initial = fullName.charAt(0).toUpperCase();
   const verified = user?.kyc_status?.toLowerCase() === 'verified';
-  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const isAdmin = ['admin', 'super_admin'].includes(
+    user?.role?.toLowerCase() ?? ''
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
