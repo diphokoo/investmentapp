@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -332,6 +332,276 @@ export async function fetchDashboardData(userId: string, creditLimitCents: numbe
     recentLoans: loans.slice(0, 5),
   };
 }
+export interface AdminDashboardStats {
+  customers: {
+    total: number;
+    active: number;
+    new_last_30_days: number;
+  };
+  loans: {
+    total: number;
+    pending: number;
+    flagged: number;
+    approved: number;
+    disbursed: number;
+    active: number;
+    overdue: number;
+    paid: number;
+    rejected: number;
+    requested_amount: number;
+    approved_amount: number;
+    outstanding_balance: number;
+  };
+  transactions: {
+    total: number;
+    completed_disbursements: number;
+    completed_repayments: number;
+    total_disbursed: number;
+    total_repaid: number;
+  };
+  employers: {
+    total: number;
+    active: number;
+  };
+  approved_loans: {
+    id: string;
+    user_id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+    requested_amount: number;
+    approved_amount: number | null;
+    status: string;
+    reviewed_at: string | null;
+  }[];
+  recent_activity: {
+    id: string;
+    action: string;
+    entity_type: string | null;
+    entity_id: string | null;
+    created_at: string;
+  }[];
+}
+
+export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const accessToken = await getValidAccessToken();
+
+  const { data, error } = await supabase.rpc(
+    'get_admin_dashboard_stats',
+    { p_access_token: accessToken }
+  );
+
+  if (error) throw new Error(error.message);
+
+  const result = data as AdminDashboardStats & { error?: string };
+
+  if (result?.error) {
+    throw new Error(
+      result.error === 'UNAUTHORIZED_ADMIN_ACCESS'
+        ? 'Your account is not authorised to view the admin dashboard.'
+        : 'Your session is invalid or has expired.'
+    );
+  }
+
+  if (!result?.customers || !result?.loans || !result?.transactions) {
+    throw new Error('Incomplete dashboard statistics returned by server.');
+  }
+
+  // Older RPC deployments may not return this optional list yet.
+  result.approved_loans = Array.isArray(result.approved_loans) ? result.approved_loans : [];
+  return result;
+}
+
+
+export interface AdminCustomerLoan {
+  id: string;
+  status: string;
+  requested_amount: number;
+  approved_amount: number | null;
+  disbursed_amount: number | null;
+  outstanding_balance: number;
+  total_repayable: number | null;
+  due_date: string | null;
+  created_at: string;
+  submitted_at: string | null;
+}
+
+export interface AdminCustomer {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  id_number: string | null;
+  employee_number: string | null;
+  monthly_salary: number | null;
+  pay_day: number | null;
+  kyc_status: string;
+  is_active: boolean;
+  credit_limit: number;
+  created_at: string;
+  employer_name: string | null;
+  employer_is_active: boolean | null;
+  loan_count: number;
+  loans: AdminCustomerLoan[];
+}
+
+export async function fetchAdminCustomers(
+  search = '',
+): Promise<AdminCustomer[]> {
+  const accessToken = await getValidAccessToken();
+
+  const { data, error } = await supabase.rpc('get_admin_customers', {
+    p_access_token: accessToken,
+    p_search: search.trim() || null,
+  });
+
+  if (error) {
+    throw new Error(`Could not load customers: ${error.message}`);
+  }
+
+  const result = data as {
+    error?: string;
+    customers?: AdminCustomer[];
+  } | null;
+
+  if (!result) {
+    throw new Error('The server returned an empty customer response.');
+  }
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  return result.customers ?? [];
+}
+
+
+// ── Admin Loan Review ────────────────────────────────────────────────────────
+
+export interface AdminReviewDocument {
+  id: string;
+  document_type: string;
+  file_name: string;
+  file_url: string;
+  mime_type: string | null;
+  status: string;
+  review_note: string | null;
+  is_required: boolean;
+}
+
+export interface AdminReviewConsent {
+  id: string;
+  consent_type: string;
+  consent_version: string;
+  consent_text: string;
+  accepted: boolean;
+  accepted_at: string | null;
+  signer_name: string | null;
+}
+
+export interface AdminReviewApplication {
+  id: string;
+  user_id: string;
+  employer_id: string | null;
+  requested_amount: number;
+  approved_amount: number | null;
+  disbursed_amount: number | null;
+  outstanding_balance: number;
+  total_repayable: number | null;
+  interest_rate_bps: number;
+  term_days: number;
+  due_date: string | null;
+  employee_number: string | null;
+  monthly_salary: number | null;
+  pay_day: number | null;
+  purpose: string | null;
+  status: string;
+  risk_level: string | null;
+  credit_score: number | null;
+  consent_given: boolean;
+  consent_timestamp: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  admin_notes: string | null;
+  submitted_at: string | null;
+  created_at: string;
+  customer: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+    phone: string | null;
+    id_number: string | null;
+    employee_number: string | null;
+    monthly_salary: number | null;
+    pay_day: number | null;
+    kyc_status: string | null;
+    credit_limit: number | null;
+  };
+  employer: { id: string; name: string; is_active: boolean } | null;
+  documents: AdminReviewDocument[];
+  consents: AdminReviewConsent[];
+}
+
+export type AdminLoanReviewFilter = 'pending' | 'flagged' | 'all';
+
+export async function fetchAdminLoanReviewQueue(
+  status: AdminLoanReviewFilter = 'pending',
+): Promise<AdminReviewApplication[]> {
+  const accessToken = await getValidAccessToken();
+  const { data, error } = await supabase.rpc('get_admin_loan_review_queue', {
+    p_access_token: accessToken,
+    p_status: status,
+  });
+  if (error) throw new Error(`Could not load loan applications: ${error.message}`);
+  const result = data as { error?: string; applications?: AdminReviewApplication[] } | null;
+  if (!result) throw new Error('The server returned an empty loan review response.');
+  if (result.error) throw new Error(result.error);
+  return result.applications ?? [];
+}
+
+export type AdminLoanReviewAction = 'approve' | 'reject' | 'flag';
+
+export async function reviewAdminLoan(params: {
+  loanId: string;
+  action: AdminLoanReviewAction;
+  approvedAmount?: number;
+  rejectionReason?: string;
+  adminNotes?: string;
+}): Promise<{ success: boolean; loan_id: string; status: string; action: string; reviewed_by: string }> {
+  const accessToken = await getValidAccessToken();
+  const { data, error } = await supabase.rpc('review_admin_loan', {
+    p_access_token: accessToken,
+    p_loan_id: params.loanId,
+    p_action: params.action,
+    p_approved_amount: params.approvedAmount ?? null,
+    p_rejection_reason: params.rejectionReason?.trim() || null,
+    p_admin_notes: params.adminNotes?.trim() || null,
+  });
+  if (error) throw new Error(`Could not review loan: ${error.message}`);
+  const result = data as any;
+  if (!result) throw new Error('The server returned an empty review response.');
+  if (result.error) {
+    const messages: Record<string, string> = {
+      INVALID_SESSION: 'Your session has expired. Please sign in again.',
+      UNAUTHORIZED_ADMIN_ACCESS: 'Your account is not authorised to review loans.',
+      LOAN_NOT_FOUND: 'This loan application could not be found.',
+      LOAN_NOT_REVIEWABLE: 'This application has already moved beyond review.',
+      INVALID_APPROVED_AMOUNT: 'Enter a valid approval amount.',
+      REJECTION_REASON_REQUIRED: 'A rejection reason is required.',
+      INVALID_ACTION: 'The requested review action is invalid.',
+    };
+    throw new Error(messages[result.error] ?? result.error);
+  }
+  if (!result.success || !result.loan_id || !result.status) {
+    throw new Error('The server did not confirm the review decision.');
+  }
+  return result;
+}
+
 
 // ── Employers / Loan Application ──────────────────────────────────────────────
 

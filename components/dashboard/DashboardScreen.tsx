@@ -1,11 +1,11 @@
+import { useAuth } from '@/lib/auth-context';
+import { DashboardData, fetchDashboardData, LoanRecord } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect, useCallback } from 'react';
-import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BalanceCard from './BalanceCard';
 import BottomNav, { NavTab } from './BottomNav';
-import { useAuth } from '@/lib/auth-context';
-import { fetchDashboardData, DashboardData, LoanRecord } from '@/lib/supabase';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -50,23 +50,40 @@ export default function DashboardScreen({ onNavChange }: Props) {
   const [activeNav, setActiveNav]     = useState<NavTab>('history');
   const [dashData, setDashData]       = useState<DashboardData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const firstName = user?.first_name ?? user?.email?.split('@')[0] ?? 'there';
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoadingData(true);
+    setLoadError('');
     try {
       const d = await fetchDashboardData(user.id, user.credit_limit ?? 0);
       setDashData(d);
-    } catch {
-      // silently fail — UI shows zeros
+    } catch (error: any) {
+      setLoadError(error?.message ?? 'Could not refresh your loan information.');
     } finally {
       setLoadingData(false);
+      setRefreshing(false);
     }
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Refresh when the customer returns to the app after an admin decision.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    void load();
+  };
 
   const handleNav = (tab: NavTab) => {
     setActiveNav(tab);
@@ -83,7 +100,12 @@ export default function DashboardScreen({ onNavChange }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" />
       <View style={styles.root}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#16a34a" />}
+        >
 
           {/* Header */}
           <View style={styles.header}>
@@ -103,6 +125,12 @@ export default function DashboardScreen({ onNavChange }: Props) {
             outstanding={outstanding}
             nextDueDate={nextDueDate}
           />
+
+          {!!loadError && (
+            <TouchableOpacity style={styles.errorNotice} onPress={() => void load()}>
+              <Text style={styles.errorNoticeText}>{loadError} Tap to retry.</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Quick Actions */}
           <View style={styles.quickActions}>
@@ -232,6 +260,8 @@ const styles = StyleSheet.create({
   loanBannerSub:   { fontSize: 11, color: '#b45309', marginTop: 1 },
   payNowBtn:  { backgroundColor: '#d97706', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   payNowText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  errorNotice: { marginHorizontal: 20, marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: '#fef2f2' },
+  errorNoticeText: { color: '#b91c1c', fontSize: 12, fontWeight: '600' },
   section:       { marginTop: 20, marginHorizontal: 20, gap: 12 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle:  { fontSize: 17, fontWeight: '800', color: '#0f172a' },
