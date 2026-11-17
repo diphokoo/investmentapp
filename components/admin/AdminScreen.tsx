@@ -1,7 +1,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -78,42 +78,40 @@ export default function AdminScreen({ onClose }: Props) {
   const [pendingReviewAction, setPendingReviewAction] = useState<'approve' | 'reject' | 'flag' | null>(null);
 
 
-  useEffect(() => {
-    let mounted = true;
+  // Fetch the latest figures from the database. Keep the last successful
+  // figures visible if a background refresh temporarily fails.
+  const refreshStats = useCallback(async (showLoading = true) => {
+    if (showLoading) setStatsLoading(true);
+    setStatsError('');
 
-    const loadStats = async () => {
-      try {
-        setStatsLoading(true);
-        setStatsError('');
-
-        const result = await fetchAdminDashboardStats();
-
-        if (mounted) {
-          setStats(result);
-        }
-      } catch (error: any) {
-        if (mounted) {
-          setStatsError(
-            error?.message ?? 'Could not load dashboard statistics.'
-          );
-        }
-      } finally {
-        if (mounted) {
-          setStatsLoading(false);
-        }
-      }
-    };
-
-    if (user?.id) {
-      void loadStats();
-    } else {
-      setStatsLoading(false);
+    try {
+      const result = await fetchAdminDashboardStats();
+      setStats(result);
+      return true;
+    } catch (error: any) {
+      setStatsError(error?.message ?? 'Could not load dashboard statistics.');
+      return false;
+    } finally {
+      if (showLoading) setStatsLoading(false);
     }
+  }, []);
 
-    return () => {
-      mounted = false;
-    };
-  }, [user?.id]);
+  // Refresh when the dashboard tab is opened, then poll every 30 seconds
+  // while it remains visible so repayments/status changes appear promptly.
+  useEffect(() => {
+    if (!user?.id) {
+      setStatsLoading(false);
+      return;
+    }
+    if (activeTab !== 'dashboard') return;
+
+    void refreshStats();
+    const interval = setInterval(() => {
+      void refreshStats(false);
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, [user?.id, activeTab, refreshStats]);
 
   useEffect(() => {
     if (activeTab !== 'clients') return;
@@ -163,19 +161,6 @@ export default function AdminScreen({ onClose }: Props) {
     return () => { mounted = false; };
   }, [activeTab, reviewFilter]);
 
-  const refreshDashboardStats = async () => {
-    setStatsLoading(true);
-    setStatsError('');
-    try {
-      const result = await fetchAdminDashboardStats();
-      setStats(result);
-    } catch (error: any) {
-      setStatsError(error?.message ?? 'Could not refresh dashboard statistics.');
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
   const refreshReviewQueue = async () => {
     setReviewLoading(true);
     setReviewError('');
@@ -223,7 +208,8 @@ export default function AdminScreen({ onClose }: Props) {
       setApprovedAmountInput('');
       setRejectionReasonInput('');
       setAdminNotesInput('');
-      await Promise.all([refreshReviewQueue(), refreshDashboardStats()]);
+      await refreshReviewQueue();
+      await refreshStats(false);
     } catch (error: any) {
       Alert.alert('Could not save decision', error?.message ?? 'Please try again.');
     } finally {
@@ -278,7 +264,7 @@ export default function AdminScreen({ onClose }: Props) {
           bg: '#eff6ff',
         },
         {
-          label: 'Outstanding',
+          label: 'Outstanding Loans',
           value: formatRand(stats.loans.outstanding_balance),
           icon: 'alert-circle-outline',
           color: '#dc2626',
@@ -396,7 +382,22 @@ export default function AdminScreen({ onClose }: Props) {
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Analytics Overview</Text>
+            <View style={styles.reviewHeadingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Analytics Overview</Text>
+                <Text style={styles.customerCount}>Live portfolio figures · refreshes every 30 seconds</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => void refreshStats()}
+                disabled={statsLoading}
+                style={[styles.refreshButton, statsLoading && styles.disabledAction]}
+              >
+                {statsLoading
+                  ? <ActivityIndicator size="small" color="#2563eb" />
+                  : <Ionicons name="refresh-outline" size={18} color="#2563eb" />}
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
 
             {statsLoading && (
               <Text style={styles.loadingText}>
@@ -419,14 +420,7 @@ export default function AdminScreen({ onClose }: Props) {
                     setStatsLoading(true);
                     setStatsError('');
 
-                    void fetchAdminDashboardStats()
-                      .then(setStats)
-                      .catch(error =>
-                        setStatsError(
-                          error?.message ?? 'Could not load dashboard data.'
-                        )
-                      )
-                      .finally(() => setStatsLoading(false));
+                    void refreshStats();
                   }}
                 >
                   <Text style={styles.retryText}>Retry</Text>
@@ -548,36 +542,6 @@ export default function AdminScreen({ onClose }: Props) {
                       </Text>
                     </View>
                   ))}
-                </View>
-
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryTitle}>Approved Loans</Text>
-                  <View style={styles.approvedTotalRow}>
-                    <Text style={styles.summaryLabel}>Total approved value</Text>
-                    <Text style={styles.approvedTotalValue}>
-                      {formatRand(stats.approved_loans.reduce((sum, loan) => sum + (loan.approved_amount ?? 0), 0))}
-                    </Text>
-                  </View>
-                  <Text style={styles.customerCount}>
-                    {stats.approved_loans.length} approved {stats.approved_loans.length === 1 ? 'application' : 'applications'}
-                  </Text>
-                  {stats.approved_loans.length === 0 ? (
-                    <Text style={styles.chartPlaceholderSub}>Approved applications will appear here.</Text>
-                  ) : stats.approved_loans.map(loan => {
-                    const name = [loan.first_name, loan.last_name].filter(Boolean).join(' ') || loan.email || 'Customer';
-                    return (
-                      <View key={loan.id} style={styles.approvedLoanRow}>
-                        <View style={styles.approvedLoanInfo}>
-                          <Text style={styles.approvedLoanName}>{name}</Text>
-                          <Text style={styles.approvedLoanMeta}>{loan.email || 'No email'} · {formatDate(loan.reviewed_at)}</Text>
-                        </View>
-                        <View style={styles.approvedLoanAmountWrap}>
-                          <Text style={styles.approvedLoanAmount}>{formatRand(loan.approved_amount ?? 0)}</Text>
-                          <Text style={styles.approvedLoanStatus}>Approved</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
                 </View>
               </>
             )}
@@ -909,8 +873,8 @@ export default function AdminScreen({ onClose }: Props) {
 
                   <View style={styles.reviewDivider} />
                   <Text style={styles.reviewSubTitle}>Review decision</Text>
-                  <Text style={styles.inputLabel}>Approved amount (cents)</Text>
-                  <TextInput value={approvedAmountInput} onChangeText={setApprovedAmountInput} keyboardType="numeric" placeholder="Enter amount in cents" placeholderTextColor="#94a3b8" style={styles.reviewInput} />
+                  <Text style={styles.inputLabel}>Approved amount (R)</Text>
+                  <TextInput value={approvedAmountInput} onChangeText={setApprovedAmountInput} keyboardType="numeric" placeholder="Enter amount in rand" placeholderTextColor="#94a3b8" style={styles.reviewInput} />
                   <Text style={styles.inputLabel}>Rejection reason (required to reject)</Text>
                   <TextInput value={rejectionReasonInput} onChangeText={setRejectionReasonInput} placeholder="Explain why the application is rejected" placeholderTextColor="#94a3b8" multiline style={[styles.reviewInput, styles.multilineInput]} />
                   <Text style={styles.inputLabel}>Internal admin notes (optional)</Text>
@@ -1095,15 +1059,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0f172a',
   },
-  approvedTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  approvedTotalValue: { fontSize: 17, fontWeight: '800', color: '#16a34a' },
-  approvedLoanRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 12 },
-  approvedLoanInfo: { flex: 1, gap: 3 },
-  approvedLoanName: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  approvedLoanMeta: { fontSize: 10, color: '#64748b' },
-  approvedLoanAmountWrap: { alignItems: 'flex-end', gap: 3 },
-  approvedLoanAmount: { fontSize: 13, fontWeight: '800', color: '#16a34a' },
-  approvedLoanStatus: { fontSize: 10, color: '#16a34a', fontWeight: '700' },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

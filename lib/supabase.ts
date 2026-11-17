@@ -292,13 +292,28 @@ export interface LoanRecord {
   due_date: string | null;
   submitted_at: string | null;
   created_at: string;
+  total_repayable: number | null;
 }
 
 export interface DashboardData {
-  availableCredit: number;
-  outstanding: number;
+  availableCredit: number;       // Rand value
+  outstanding: number;           // Number of loans currently owed
+  outstandingAmount: number;     // Total Rand value currently owed
   nextDueDate: string | null;
+  status: string;
   recentLoans: LoanRecord[];
+  loans: LoanRecord[];
+}
+
+const OWING_LOAN_STATUSES = ['approved', 'disbursed', 'active', 'overdue'];
+
+function getDashboardStatus(loans: LoanRecord[], outstandingCount: number): string {
+  if (outstandingCount > 0) return 'Outstanding';
+  if (loans.some(loan => ['pending', 'flagged'].includes(loan.status?.toLowerCase()))) return 'Pending';
+  if (loans.some(loan => loan.status?.toLowerCase() === 'approved')) return 'Approved';
+  if (loans.some(loan => ['paid', 'closed'].includes(loan.status?.toLowerCase()))) return 'Paid';
+  if (loans.some(loan => loan.status?.toLowerCase() === 'rejected')) return 'Rejected';
+  return 'Clear';
 }
 
 export async function fetchDashboardData(userId: string, creditLimitCents: number): Promise<DashboardData> {
@@ -307,29 +322,49 @@ export async function fetchDashboardData(userId: string, creditLimitCents: numbe
   const { data, error } = await supabase.rpc('fetch_user_loans', { p_user_id: userId });
   if (error) throw new Error(error.message);
 
-  const loans: LoanRecord[] = data ?? [];
-  const activeLoans = loans.filter(loan => ['active', 'approved', 'disbursed'].includes(loan.status));
-  const totalOutstandingCents = activeLoans.reduce((sum, loan) => sum + (loan.outstanding_balance ?? 0), 0);
-  const availableCreditCents = Math.max(0, creditLimitCents - totalOutstandingCents);
+  const loans: LoanRecord[] = (data ?? []).map((loan: LoanRecord) => ({
+    ...loan,
+    requested_amount: Number(loan.requested_amount ?? 0),
+    approved_amount: loan.approved_amount == null ? null : Number(loan.approved_amount),
+    outstanding_balance: Number(loan.outstanding_balance ?? 0),
+    total_repayable: loan.total_repayable == null ? null : Number(loan.total_repayable),
+  }));
 
+  // Only disbursed loans with a positive balance are amounts the customer currently owes.
+  // Pending and approved-but-not-disbursed applications are not outstanding loans.
+  const outstandingLoans = loans.filter(loan =>
+    OWING_LOAN_STATUSES.includes(loan.status?.toLowerCase()) && loan.outstanding_balance > 0
+  );
+  const outstandingCount = outstandingLoans.length;
+  const totalOutstandingCents = outstandingLoans.reduce(
+    (total, loan) => total + loan.outstanding_balance,
+    0
+  );
+  const availableCreditCents = Math.max(0, Number(creditLimitCents ?? 0) - totalOutstandingCents);
+
+  // Keep date-only values as local calendar dates to avoid timezone shifts.
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const upcomingDates = activeLoans
-    .filter(loan => loan.due_date && loan.outstanding_balance > 0)
-    .map(loan => new Date(loan.due_date as string))
-    .filter(date => date >= today)
-    .sort((a, b) => a.getTime() - b.getTime());
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const upcomingDates = outstandingLoans
+    .map(loan => loan.due_date)
+    .filter((date): date is string => Boolean(date) && date! >= todayKey)
+    .sort((a, b) => a.localeCompare(b));
 
   const nextDueDateRaw = upcomingDates[0] ?? null;
   const nextDueDate = nextDueDateRaw
-    ? nextDueDateRaw.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? new Date(`${nextDueDateRaw}T00:00:00`).toLocaleDateString('en-ZA', {
+        day: 'numeric', month: 'short', year: 'numeric'
+      })
     : null;
 
   return {
     availableCredit: availableCreditCents / 100,
-    outstanding: totalOutstandingCents / 100,
+    outstanding: outstandingCount,
+    outstandingAmount: totalOutstandingCents / 100,
     nextDueDate,
+    status: getDashboardStatus(loans, outstandingCount),
     recentLoans: loans.slice(0, 5),
+    loans,
   };
 }
 export interface AdminDashboardStats {
@@ -363,18 +398,6 @@ export interface AdminDashboardStats {
     total: number;
     active: number;
   };
-  approved_loans: {
-    id: string;
-    user_id: string;
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-    phone: string | null;
-    requested_amount: number;
-    approved_amount: number | null;
-    status: string;
-    reviewed_at: string | null;
-  }[];
   recent_activity: {
     id: string;
     action: string;
@@ -408,8 +431,6 @@ export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
     throw new Error('Incomplete dashboard statistics returned by server.');
   }
 
-  // Older RPC deployments may not return this optional list yet.
-  result.approved_loans = Array.isArray(result.approved_loans) ? result.approved_loans : [];
   return result;
 }
 
@@ -475,131 +496,6 @@ export async function fetchAdminCustomers(
   }
 
   return result.customers ?? [];
-}
-
-
-// ── Admin Loan Review ────────────────────────────────────────────────────────
-
-export interface AdminReviewDocument {
-  id: string;
-  document_type: string;
-  file_name: string;
-  file_url: string;
-  mime_type: string | null;
-  status: string;
-  review_note: string | null;
-  is_required: boolean;
-}
-
-export interface AdminReviewConsent {
-  id: string;
-  consent_type: string;
-  consent_version: string;
-  consent_text: string;
-  accepted: boolean;
-  accepted_at: string | null;
-  signer_name: string | null;
-}
-
-export interface AdminReviewApplication {
-  id: string;
-  user_id: string;
-  employer_id: string | null;
-  requested_amount: number;
-  approved_amount: number | null;
-  disbursed_amount: number | null;
-  outstanding_balance: number;
-  total_repayable: number | null;
-  interest_rate_bps: number;
-  term_days: number;
-  due_date: string | null;
-  employee_number: string | null;
-  monthly_salary: number | null;
-  pay_day: number | null;
-  purpose: string | null;
-  status: string;
-  risk_level: string | null;
-  credit_score: number | null;
-  consent_given: boolean;
-  consent_timestamp: string | null;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  rejection_reason: string | null;
-  admin_notes: string | null;
-  submitted_at: string | null;
-  created_at: string;
-  customer: {
-    id: string;
-    first_name: string | null;
-    last_name: string | null;
-    email: string;
-    phone: string | null;
-    id_number: string | null;
-    employee_number: string | null;
-    monthly_salary: number | null;
-    pay_day: number | null;
-    kyc_status: string | null;
-    credit_limit: number | null;
-  };
-  employer: { id: string; name: string; is_active: boolean } | null;
-  documents: AdminReviewDocument[];
-  consents: AdminReviewConsent[];
-}
-
-export type AdminLoanReviewFilter = 'pending' | 'flagged' | 'all';
-
-export async function fetchAdminLoanReviewQueue(
-  status: AdminLoanReviewFilter = 'pending',
-): Promise<AdminReviewApplication[]> {
-  const accessToken = await getValidAccessToken();
-  const { data, error } = await supabase.rpc('get_admin_loan_review_queue', {
-    p_access_token: accessToken,
-    p_status: status,
-  });
-  if (error) throw new Error(`Could not load loan applications: ${error.message}`);
-  const result = data as { error?: string; applications?: AdminReviewApplication[] } | null;
-  if (!result) throw new Error('The server returned an empty loan review response.');
-  if (result.error) throw new Error(result.error);
-  return result.applications ?? [];
-}
-
-export type AdminLoanReviewAction = 'approve' | 'reject' | 'flag';
-
-export async function reviewAdminLoan(params: {
-  loanId: string;
-  action: AdminLoanReviewAction;
-  approvedAmount?: number;
-  rejectionReason?: string;
-  adminNotes?: string;
-}): Promise<{ success: boolean; loan_id: string; status: string; action: string; reviewed_by: string }> {
-  const accessToken = await getValidAccessToken();
-  const { data, error } = await supabase.rpc('review_admin_loan', {
-    p_access_token: accessToken,
-    p_loan_id: params.loanId,
-    p_action: params.action,
-    p_approved_amount: params.approvedAmount ?? null,
-    p_rejection_reason: params.rejectionReason?.trim() || null,
-    p_admin_notes: params.adminNotes?.trim() || null,
-  });
-  if (error) throw new Error(`Could not review loan: ${error.message}`);
-  const result = data as any;
-  if (!result) throw new Error('The server returned an empty review response.');
-  if (result.error) {
-    const messages: Record<string, string> = {
-      INVALID_SESSION: 'Your session has expired. Please sign in again.',
-      UNAUTHORIZED_ADMIN_ACCESS: 'Your account is not authorised to review loans.',
-      LOAN_NOT_FOUND: 'This loan application could not be found.',
-      LOAN_NOT_REVIEWABLE: 'This application has already moved beyond review.',
-      INVALID_APPROVED_AMOUNT: 'Enter a valid approval amount.',
-      REJECTION_REASON_REQUIRED: 'A rejection reason is required.',
-      INVALID_ACTION: 'The requested review action is invalid.',
-    };
-    throw new Error(messages[result.error] ?? result.error);
-  }
-  if (!result.success || !result.loan_id || !result.status) {
-    throw new Error('The server did not confirm the review decision.');
-  }
-  return result;
 }
 
 
