@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -292,13 +292,28 @@ export interface LoanRecord {
   due_date: string | null;
   submitted_at: string | null;
   created_at: string;
+  total_repayable: number | null;
 }
 
 export interface DashboardData {
-  availableCredit: number;
-  outstanding: number;
+  availableCredit: number;       // Rand value
+  outstanding: number;           // Number of loans currently owed
+  outstandingAmount: number;     // Total Rand value currently owed
   nextDueDate: string | null;
+  status: string;
   recentLoans: LoanRecord[];
+  loans: LoanRecord[];
+}
+
+const OWING_LOAN_STATUSES = ['approved', 'disbursed', 'active', 'overdue'];
+
+function getDashboardStatus(loans: LoanRecord[], outstandingCount: number): string {
+  if (outstandingCount > 0) return 'Outstanding';
+  if (loans.some(loan => ['pending', 'flagged'].includes(loan.status?.toLowerCase()))) return 'Pending';
+  if (loans.some(loan => loan.status?.toLowerCase() === 'approved')) return 'Approved';
+  if (loans.some(loan => ['paid', 'closed'].includes(loan.status?.toLowerCase()))) return 'Paid';
+  if (loans.some(loan => loan.status?.toLowerCase() === 'rejected')) return 'Rejected';
+  return 'Clear';
 }
 
 export async function fetchDashboardData(userId: string, creditLimitCents: number): Promise<DashboardData> {
@@ -307,31 +322,182 @@ export async function fetchDashboardData(userId: string, creditLimitCents: numbe
   const { data, error } = await supabase.rpc('fetch_user_loans', { p_user_id: userId });
   if (error) throw new Error(error.message);
 
-  const loans: LoanRecord[] = data ?? [];
-  const activeLoans = loans.filter(loan => ['active', 'approved', 'disbursed'].includes(loan.status));
-  const totalOutstandingCents = activeLoans.reduce((sum, loan) => sum + (loan.outstanding_balance ?? 0), 0);
-  const availableCreditCents = Math.max(0, creditLimitCents - totalOutstandingCents);
+  const loans: LoanRecord[] = (data ?? []).map((loan: LoanRecord) => ({
+    ...loan,
+    requested_amount: Number(loan.requested_amount ?? 0),
+    approved_amount: loan.approved_amount == null ? null : Number(loan.approved_amount),
+    outstanding_balance: Number(loan.outstanding_balance ?? 0),
+    total_repayable: loan.total_repayable == null ? null : Number(loan.total_repayable),
+  }));
 
+  // Only disbursed loans with a positive balance are amounts the customer currently owes.
+  // Pending and approved-but-not-disbursed applications are not outstanding loans.
+  const outstandingLoans = loans.filter(loan =>
+    OWING_LOAN_STATUSES.includes(loan.status?.toLowerCase()) && loan.outstanding_balance > 0
+  );
+  const outstandingCount = outstandingLoans.length;
+  const totalOutstandingCents = outstandingLoans.reduce(
+    (total, loan) => total + loan.outstanding_balance,
+    0
+  );
+  const availableCreditCents = Math.max(0, Number(creditLimitCents ?? 0) - totalOutstandingCents);
+
+  // Keep date-only values as local calendar dates to avoid timezone shifts.
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const upcomingDates = activeLoans
-    .filter(loan => loan.due_date && loan.outstanding_balance > 0)
-    .map(loan => new Date(loan.due_date as string))
-    .filter(date => date >= today)
-    .sort((a, b) => a.getTime() - b.getTime());
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const upcomingDates = outstandingLoans
+    .map(loan => loan.due_date)
+    .filter((date): date is string => Boolean(date) && date! >= todayKey)
+    .sort((a, b) => a.localeCompare(b));
 
   const nextDueDateRaw = upcomingDates[0] ?? null;
   const nextDueDate = nextDueDateRaw
-    ? nextDueDateRaw.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? new Date(`${nextDueDateRaw}T00:00:00`).toLocaleDateString('en-ZA', {
+        day: 'numeric', month: 'short', year: 'numeric'
+      })
     : null;
 
   return {
     availableCredit: availableCreditCents / 100,
-    outstanding: totalOutstandingCents / 100,
+    outstanding: outstandingCount,
+    outstandingAmount: totalOutstandingCents / 100,
     nextDueDate,
+    status: getDashboardStatus(loans, outstandingCount),
     recentLoans: loans.slice(0, 5),
+    loans,
   };
 }
+export interface AdminDashboardStats {
+  customers: {
+    total: number;
+    active: number;
+    new_last_30_days: number;
+  };
+  loans: {
+    total: number;
+    pending: number;
+    flagged: number;
+    approved: number;
+    disbursed: number;
+    active: number;
+    overdue: number;
+    paid: number;
+    rejected: number;
+    requested_amount: number;
+    approved_amount: number;
+    outstanding_balance: number;
+  };
+  transactions: {
+    total: number;
+    completed_disbursements: number;
+    completed_repayments: number;
+    total_disbursed: number;
+    total_repaid: number;
+  };
+  employers: {
+    total: number;
+    active: number;
+  };
+  recent_activity: {
+    id: string;
+    action: string;
+    entity_type: string | null;
+    entity_id: string | null;
+    created_at: string;
+  }[];
+}
+
+export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const accessToken = await getValidAccessToken();
+
+  const { data, error } = await supabase.rpc(
+    'get_admin_dashboard_stats',
+    { p_access_token: accessToken }
+  );
+
+  if (error) throw new Error(error.message);
+
+  const result = data as AdminDashboardStats & { error?: string };
+
+  if (result?.error) {
+    throw new Error(
+      result.error === 'UNAUTHORIZED_ADMIN_ACCESS'
+        ? 'Your account is not authorised to view the admin dashboard.'
+        : 'Your session is invalid or has expired.'
+    );
+  }
+
+  if (!result?.customers || !result?.loans || !result?.transactions) {
+    throw new Error('Incomplete dashboard statistics returned by server.');
+  }
+
+  return result;
+}
+
+
+export interface AdminCustomerLoan {
+  id: string;
+  status: string;
+  requested_amount: number;
+  approved_amount: number | null;
+  disbursed_amount: number | null;
+  outstanding_balance: number;
+  total_repayable: number | null;
+  due_date: string | null;
+  created_at: string;
+  submitted_at: string | null;
+}
+
+export interface AdminCustomer {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  id_number: string | null;
+  employee_number: string | null;
+  monthly_salary: number | null;
+  pay_day: number | null;
+  kyc_status: string;
+  is_active: boolean;
+  credit_limit: number;
+  created_at: string;
+  employer_name: string | null;
+  employer_is_active: boolean | null;
+  loan_count: number;
+  loans: AdminCustomerLoan[];
+}
+
+export async function fetchAdminCustomers(
+  search = '',
+): Promise<AdminCustomer[]> {
+  const accessToken = await getValidAccessToken();
+
+  const { data, error } = await supabase.rpc('get_admin_customers', {
+    p_access_token: accessToken,
+    p_search: search.trim() || null,
+  });
+
+  if (error) {
+    throw new Error(`Could not load customers: ${error.message}`);
+  }
+
+  const result = data as {
+    error?: string;
+    customers?: AdminCustomer[];
+  } | null;
+
+  if (!result) {
+    throw new Error('The server returned an empty customer response.');
+  }
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  return result.customers ?? [];
+}
+
 
 // ── Employers / Loan Application ──────────────────────────────────────────────
 

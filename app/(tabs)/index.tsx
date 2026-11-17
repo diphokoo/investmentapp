@@ -1,36 +1,51 @@
-import { useState, useEffect } from 'react';
-import { Image, Modal, StyleSheet, View } from 'react-native';
+
+import AdminScreen from '@/components/admin/AdminScreen';
 import AuthScreen from '@/components/auth/AuthScreen';
+import { NavTab } from '@/components/dashboard/BottomNav';
 import DashboardScreen from '@/components/dashboard/DashboardScreen';
-import HistoryScreen from '@/components/history/HistoryScreen';
 import LoansScreen from '@/components/loans/LoansScreen';
 import SettingsScreen from '@/components/settings/SettingsScreen';
-import AdminScreen from '@/components/admin/AdminScreen';
-import { NavTab } from '@/components/dashboard/BottomNav';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { useEffect, useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 
-type Screen = 'auth' | NavTab;
+type Screen = 'auth' | 'admin' | NavTab;
+
+function hasAdminAccess(role?: string | null): boolean {
+  const normalizedRole = role?.toLowerCase();
+  return normalizedRole === 'admin' || normalizedRole === 'super_admin';
+}
 
 function AppContent() {
-  const { user, logout } = useAuth();
-  const [screen, setScreen]     = useState<Screen>('auth');
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [splash, setSplash]       = useState(true);
+  const { user, logout, loading: authLoading } = useAuth();
+  const [screen, setScreen] = useState<Screen>('auth');
+  const [splash, setSplash] = useState(true);
 
   useEffect(() => {
     const t = setTimeout(() => setSplash(false), 2000);
     return () => clearTimeout(t);
   }, []);
 
-  // If user logs out from anywhere, return to auth
+  // Select the correct landing screen after login or session restoration.
   useEffect(() => {
-    if (!user) setScreen('auth');
-  }, [user]);
+    if (authLoading) return;
 
-  if (splash) {
+    if (!user) {
+      setScreen('auth');
+      return;
+    }
+
+    setScreen(hasAdminAccess(user.role) ? 'admin' : 'history');
+  }, [authLoading, user?.id, user?.role]);
+
+  if (splash || authLoading) {
     return (
       <View style={styles.splash}>
-        <Image source={require('../../assets/images/logo.png')} style={styles.splashLogo} resizeMode="contain" />
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
       </View>
     );
   }
@@ -40,22 +55,35 @@ function AppContent() {
       await logout();
       return;
     }
+
     setScreen(tab);
   };
 
-  if (screen === 'auth' || !user) {
-    return <AuthScreen onLoginSuccess={() => setScreen('history')} />;
+  if (!user || screen === 'auth') {
+    return <AuthScreen />;
+  }
+
+  if (screen === 'admin') {
+    if (!hasAdminAccess(user.role)) {
+      return <AuthScreen />;
+    }
+
+    return <AdminScreen onClose={() => setScreen('history')} />;
   }
 
   return (
     <View style={styles.root}>
-      {screen === 'history'  && <DashboardScreen onNavChange={handleNav} />}
-      {screen === 'loans'    && <LoansScreen     onNavChange={handleNav} />}
-      {screen === 'settings' && <SettingsScreen  onNavChange={handleNav} />}
+      {screen === 'history' && (
+        <DashboardScreen onNavChange={handleNav} />
+      )}
 
-      <Modal visible={showAdmin} animationType="slide" onRequestClose={() => setShowAdmin(false)}>
-        <AdminScreen onClose={() => setShowAdmin(false)} />
-      </Modal>
+      {screen === 'loans' && (
+        <LoansScreen onNavChange={handleNav} />
+      )}
+
+      {screen === 'settings' && (
+        <SettingsScreen onNavChange={handleNav} />
+      )}
     </View>
   );
 }
@@ -69,7 +97,17 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  root:       { flex: 1 },
-  splash:     { flex: 1, backgroundColor: '#14532d', alignItems: 'center', justifyContent: 'center' },
-  splashLogo: { width: 220, height: 160 },
+  root: {
+    flex: 1,
+  },
+  splash: {
+    flex: 1,
+    backgroundColor: '#14532d',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashLogo: {
+    width: 220,
+    height: 160,
+  },
 });
