@@ -215,6 +215,107 @@ export async function signIn(email: string, password: string): Promise<AppUser> 
   return user;
 }
 
+// ── Password Reset ───────────────────────────────────────────────────────────
+
+
+export async function requestPasswordReset(
+  email: string,
+): Promise<string> {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error('Please enter your email address.');
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    'request-password-reset',
+    {
+      body: { email: normalizedEmail },
+    },
+  );
+
+  if (error) {
+    console.error('Password reset request failed:', error.message);
+    throw new Error(
+      'Unable to request a password reset. Please try again.',
+    );
+  }
+
+  if (
+    data?.success !== true ||
+    typeof data?.requestId !== 'string' ||
+    !data.requestId
+  ) {
+    throw new Error(
+      data?.error ?? 'Unable to request a password reset.',
+    );
+  }
+
+  return data.requestId;
+}
+
+export async function verifyPasswordResetOtp(
+  requestId: string,
+  otp: string,
+): Promise<string> {
+  if (!requestId.trim()) throw new Error('Invalid password reset request.');
+
+  const normalizedOtp = otp.trim();
+  if (!/^\d{6}$/.test(normalizedOtp)) {
+    throw new Error('Please enter a valid six-digit verification code.');
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    'verify-password-reset',
+    { body: { requestId: requestId.trim(), otp: normalizedOtp } },
+  );
+
+  if (error) {
+    console.error('OTP verification failed:', error.message);
+    throw new Error('Unable to verify your code. Please try again.');
+  }
+
+  if (data?.success !== true || typeof data?.resetToken !== 'string' || !data.resetToken) {
+    throw new Error(data?.error ?? 'Invalid or expired verification code.');
+  }
+
+  return data.resetToken;
+}
+
+export async function completePasswordReset(
+  requestId: string,
+  resetToken: string,
+  newPassword: string,
+): Promise<void> {
+  if (!requestId.trim() || !resetToken.trim()) {
+    throw new Error('Invalid or expired password reset request.');
+  }
+
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    throw new Error('Password must be between 8 and 128 characters.');
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    'complete-password-reset',
+    {
+      body: {
+        requestId: requestId.trim(),
+        resetToken: resetToken.trim(),
+        newPassword,
+      },
+    },
+  );
+
+  if (error) {
+    console.error('Password reset completion failed:', error.message);
+    throw new Error('Unable to reset your password. Please try again.');
+  }
+
+  if (data?.success !== true) {
+    throw new Error(data?.error ?? 'Unable to reset your password.');
+  }
+}
+
 export async function restoreCustomerSession(): Promise<AppUser | null> {
   const existing = await loadSession();
   if (!existing) return null;
